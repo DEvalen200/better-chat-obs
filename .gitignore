@@ -19,3 +19,7 @@ cmake_install.cmake
 
 # macOS
 .DS_Store
+
+# Instalador (artefactos de build)
+installer/payload/
+installer/*.exe
