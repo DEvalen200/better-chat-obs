@@ -48,6 +48,8 @@ target_sources(
     src/betterchat-api.hpp
     src/betterchat-dock.cpp
     src/betterchat-dock.hpp
+    src/betterchat-resize.cpp
+    src/betterchat-resize.hpp
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

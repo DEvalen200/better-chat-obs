@@ -17,6 +17,9 @@ OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
 // Definida en betterchat-dock.cpp: crea el widget y lo registra como dock.
 extern void betterchat_register_dock(void);
+// Definidas en betterchat-resize.cpp: vigilante de redimensionado (escala -> resolucion).
+extern void betterchat_start_resize_watcher(void);
+extern void betterchat_stop_resize_watcher(void);
 
 bool obs_module_load(void)
 {
@@ -28,9 +31,11 @@ bool obs_module_load(void)
 void obs_module_post_load(void)
 {
 	betterchat_register_dock();
+	betterchat_start_resize_watcher();
 }
 
 void obs_module_unload(void)
 {
+	betterchat_stop_resize_watcher();
 	obs_log(LOG_INFO, "BetterChatTV plugin descargado");
 }
