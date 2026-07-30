@@ -8,7 +8,7 @@ Unicode true
 
 !define PLUGIN_NAME "BetterChatTV para OBS"
 !define PLUGIN_ID   "betterchat-obs"
-!define PLUGIN_VER  "0.1.2"
+!define PLUGIN_VER  "0.1.4"
 !define PUBLISHER   "BetterChatTV"
 !define WEBSITE     "https://betterchat.tv"
 
@@ -68,9 +68,28 @@ Function .onVerifyInstDir
   ${EndIf}
 FunctionEnd
 
+; ---- Comprobar que OBS no esta abierto (bloquea el .dll) ----
+; Usa tasklist + find (nativos de Windows, sin plugins). find devuelve
+; errorlevel 0 si encuentra la cadena obs64.exe en la lista de procesos.
+Function EnsureObsClosed
+  check_obs:
+    nsExec::Exec 'cmd /c tasklist /FI "IMAGENAME eq obs64.exe" /NH | find /I "obs64.exe"'
+    Pop $0   ; 0 = encontrado (OBS corriendo), 1 = no encontrado
+    ${If} $0 == 0
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION \
+        "OBS Studio esta abierto y bloquea la instalacion del plugin.$\r$\n$\r$\nCierra OBS por completo y pulsa Reintentar." \
+        IDRETRY check_obs
+      ; Cancelar:
+      Abort "Instalacion cancelada: cierra OBS y vuelve a ejecutar el instalador."
+    ${EndIf}
+FunctionEnd
+
 ; ---- Seccion principal ----
 Section "Plugin BetterChatTV" SecMain
   SectionIn RO
+
+  ; Antes de tocar nada: exigir que OBS este cerrado (si no, el .dll esta bloqueado).
+  Call EnsureObsClosed
 
   ; El .dll del plugin.
   SetOutPath "$INSTDIR\obs-plugins\64bit"
