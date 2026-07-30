@@ -26,8 +26,8 @@ static QString describeNetworkError(QNetworkReply *reply)
 {
 	int http = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 	QString err = reply->errorString();
-	obs_log(LOG_WARNING, "[betterchat] network error: qt=%d http=%d msg=%s",
-		(int) reply->error(), http, err.toUtf8().constData());
+	obs_log(LOG_WARNING, "[betterchat] network error: qt=%d http=%d msg=%s", (int)reply->error(), http,
+		err.toUtf8().constData());
 	if (!QSslSocket::supportsSsl()) {
 		obs_log(LOG_WARNING, "[betterchat] Qt reports NO SSL/TLS support (build lib: %s)",
 			QSslSocket::sslLibraryBuildVersionString().toUtf8().constData());
@@ -53,8 +53,7 @@ BetterChatApi::BetterChatApi(QObject *parent) : QObject(parent), m_baseUrl(resol
 	m_pairTimer.setInterval(3000);
 	connect(&m_pairTimer, &QTimer::timeout, this, &BetterChatApi::pollPairing);
 	connect(&m_statusTimer, &QTimer::timeout, this, &BetterChatApi::refreshStatus);
-	obs_log(LOG_INFO, "[betterchat] api base=%s ssl_support=%s ssl_build=%s",
-		m_baseUrl.toUtf8().constData(),
+	obs_log(LOG_INFO, "[betterchat] api base=%s ssl_support=%s ssl_build=%s", m_baseUrl.toUtf8().constData(),
 		QSslSocket::supportsSsl() ? "yes" : "NO",
 		QSslSocket::sslLibraryBuildVersionString().toUtf8().constData());
 }
@@ -89,7 +88,8 @@ QNetworkRequest BetterChatApi::apiRequest(const QString &path, bool withAuth) co
 
 void BetterChatApi::startPairing()
 {
-	QNetworkReply *reply = m_net.post(apiRequest(QStringLiteral("/api/plugin/pair/start"), false), QByteArray("{}"));
+	QNetworkReply *reply =
+		m_net.post(apiRequest(QStringLiteral("/api/plugin/pair/start"), false), QByteArray("{}"));
 	connect(reply, &QNetworkReply::finished, this, [this, reply]() {
 		reply->deleteLater();
 		if (reply->error() != QNetworkReply::NoError) {
@@ -137,8 +137,7 @@ void BetterChatApi::pollPairing()
 	QJsonObject body;
 	body.insert(QStringLiteral("deviceCode"), m_deviceCode);
 	QByteArray payload = QJsonDocument(body).toJson(QJsonDocument::Compact);
-	QNetworkReply *reply =
-		m_net.post(apiRequest(QStringLiteral("/api/plugin/pair/token"), false), payload);
+	QNetworkReply *reply = m_net.post(apiRequest(QStringLiteral("/api/plugin/pair/token"), false), payload);
 	connect(reply, &QNetworkReply::finished, this, [this, reply]() {
 		reply->deleteLater();
 		QJsonObject obj = QJsonDocument::fromJson(reply->readAll()).object();

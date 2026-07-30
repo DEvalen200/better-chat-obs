@@ -98,8 +98,7 @@ void BetterChatDock::buildUi()
 		v->setSpacing(10);
 
 		auto *hint = new QLabel(
-			QStringLiteral("Vincula tu cuenta para añadir el chat a OBS y ver si estás en directo."),
-			page);
+			QStringLiteral("Vincula tu cuenta para añadir el chat a OBS y ver si estás en directo."), page);
 		hint->setObjectName(QStringLiteral("muted"));
 		hint->setWordWrap(true);
 		v->addWidget(hint);
@@ -227,7 +226,8 @@ void BetterChatDock::onAddChatSource()
 {
 	QString url = m_api->overlayUrl();
 	if (url.isEmpty()) {
-		m_actionStatus->setText(QStringLiteral("Aún no tengo tu URL de overlay. Prueba de nuevo en unos segundos."));
+		m_actionStatus->setText(
+			QStringLiteral("Aún no tengo tu URL de overlay. Prueba de nuevo en unos segundos."));
 		m_api->refreshStatus();
 		return;
 	}
@@ -263,7 +263,8 @@ void BetterChatDock::addBrowserSourceToCurrentScene(const QString &url)
 
 	if (!source) {
 		obs_source_release(sceneSource);
-		m_actionStatus->setText(QStringLiteral("No se pudo crear la fuente de navegador. ¿Tienes el navegador integrado de OBS?"));
+		m_actionStatus->setText(QStringLiteral(
+			"No se pudo crear la fuente de navegador. ¿Tienes el navegador integrado de OBS?"));
 		return;
 	}
 

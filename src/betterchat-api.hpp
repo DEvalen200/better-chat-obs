@@ -47,9 +47,9 @@ signals:
 	// Emitido con el user_code y la verify_url para mostrarlos en el dock.
 	void pairingStarted(const QString &userCode, const QString &verifyUrl);
 	void pairingFailed(const QString &message);
-	void loggedIn();          // token obtenido y validado
+	void loggedIn(); // token obtenido y validado
 	void loggedOut();
-	void statusUpdated();     // username/overlayUrl/live actualizados
+	void statusUpdated(); // username/overlayUrl/live actualizados
 	void statusError(const QString &message);
 
 private slots:
