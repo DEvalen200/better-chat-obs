@@ -76,6 +76,15 @@ Section "Plugin BetterChatTV" SecMain
   SetOutPath "$INSTDIR\obs-plugins\64bit"
   File "payload\betterchat-obs.dll"
 
+  ; Backend TLS de Qt (Schannel, TLS nativo de Windows). OBS NO incluye la
+  ; carpeta plugins/tls, asi que sin esto Qt no puede hacer HTTPS. Lo ponemos
+  ; junto al ejecutable (bin\64bit\tls) que es donde Qt busca sus plugins.
+  ; Solo se instala si no existe ya, para no pisar el de OBS si algun dia lo trae.
+  ${IfNot} ${FileExists} "$INSTDIR\bin\64bit\tls\qschannelbackend.dll"
+    SetOutPath "$INSTDIR\bin\64bit\tls"
+    File "payload\tls\qschannelbackend.dll"
+  ${EndIf}
+
   ; Los datos (locale).
   SetOutPath "$INSTDIR\data\obs-plugins\${PLUGIN_ID}"
   File /r "payload\data\*.*"

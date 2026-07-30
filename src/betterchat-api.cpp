@@ -28,9 +28,10 @@ static QString describeNetworkError(QNetworkReply *reply)
 	QString err = reply->errorString();
 	obs_log(LOG_WARNING, "[betterchat] network error: qt=%d http=%d msg=%s", (int)reply->error(), http,
 		err.toUtf8().constData());
-	if (!QSslSocket::supportsSsl()) {
-		obs_log(LOG_WARNING, "[betterchat] Qt reports NO SSL/TLS support (build lib: %s)",
-			QSslSocket::sslLibraryBuildVersionString().toUtf8().constData());
+	// OJO: supportsSsl() SOLO mira OpenSSL; ignora Schannel (TLS nativo de Windows).
+	// El indicador fiable de "sin TLS" es que NO haya ningun backend disponible.
+	if (QSslSocket::availableBackends().isEmpty()) {
+		obs_log(LOG_WARNING, "[betterchat] Qt no tiene NINGUN backend TLS disponible");
 		return QObject::tr("Tu OBS no tiene soporte TLS para HTTPS. Actualiza OBS o reinstala.");
 	}
 	if (http >= 400)
@@ -56,6 +57,8 @@ BetterChatApi::BetterChatApi(QObject *parent) : QObject(parent), m_baseUrl(resol
 	obs_log(LOG_INFO, "[betterchat] api base=%s ssl_support=%s ssl_build=%s", m_baseUrl.toUtf8().constData(),
 		QSslSocket::supportsSsl() ? "yes" : "NO",
 		QSslSocket::sslLibraryBuildVersionString().toUtf8().constData());
+	obs_log(LOG_INFO, "[betterchat] TLS backends disponibles: %s",
+		QSslSocket::availableBackends().join(QStringLiteral(", ")).toUtf8().constData());
 }
 
 void BetterChatApi::loadToken()
