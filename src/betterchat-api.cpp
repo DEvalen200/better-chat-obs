@@ -16,6 +16,27 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QSettings>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QSslSocket>
+
+#include <obs.h>
+#include <plugin-support.h>
+
+// Traduce el error de red a un texto util para el usuario y lo registra.
+static QString describeNetworkError(QNetworkReply *reply)
+{
+	int http = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+	QString err = reply->errorString();
+	obs_log(LOG_WARNING, "[betterchat] network error: qt=%d http=%d msg=%s",
+		(int) reply->error(), http, err.toUtf8().constData());
+	if (!QSslSocket::supportsSsl()) {
+		obs_log(LOG_WARNING, "[betterchat] Qt reports NO SSL/TLS support (build lib: %s)",
+			QSslSocket::sslLibraryBuildVersionString().toUtf8().constData());
+		return QObject::tr("Tu OBS no tiene soporte TLS para HTTPS. Actualiza OBS o reinstala.");
+	}
+	if (http >= 400)
+		return QObject::tr("El servidor respondió con un error (%1).").arg(http);
+	return QObject::tr("No se pudo contactar con BetterChatTV: %1").arg(err);
+}
 
 // URL base del servicio. Configurable por variable de entorno para dev.
 static QString resolveBaseUrl()
@@ -32,6 +53,10 @@ BetterChatApi::BetterChatApi(QObject *parent) : QObject(parent), m_baseUrl(resol
 	m_pairTimer.setInterval(3000);
 	connect(&m_pairTimer, &QTimer::timeout, this, &BetterChatApi::pollPairing);
 	connect(&m_statusTimer, &QTimer::timeout, this, &BetterChatApi::refreshStatus);
+	obs_log(LOG_INFO, "[betterchat] api base=%s ssl_support=%s ssl_build=%s",
+		m_baseUrl.toUtf8().constData(),
+		QSslSocket::supportsSsl() ? "yes" : "NO",
+		QSslSocket::sslLibraryBuildVersionString().toUtf8().constData());
 }
 
 void BetterChatApi::loadToken()
@@ -68,7 +93,7 @@ void BetterChatApi::startPairing()
 	connect(reply, &QNetworkReply::finished, this, [this, reply]() {
 		reply->deleteLater();
 		if (reply->error() != QNetworkReply::NoError) {
-			emit pairingFailed(tr("No se pudo contactar con BetterChatTV. Revisa tu conexión."));
+			emit pairingFailed(describeNetworkError(reply));
 			return;
 		}
 		QJsonObject obj = QJsonDocument::fromJson(reply->readAll()).object();
