@@ -21,6 +21,12 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QLabel>
 #include <QPushButton>
 #include <QFrame>
+#include <QMainWindow>
+#include <QMenuBar>
+#include <QMenu>
+#include <QAction>
+#include <QDockWidget>
+#include <QSignalBlocker>
 
 // Estilo del rebrand: negro cálido rosáceo, plano, acento rosa/turquesa.
 static const char *kStyle = R"CSS(
@@ -281,14 +287,41 @@ void BetterChatDock::onLogout()
 	m_api->logout();
 }
 
-// ---- Registro del dock en OBS (puente C) ----
-// Se llama desde obs_module_post_load(). Crea el widget y lo añade como dock
-// acoplable usando la API del frontend de OBS.
+// ---- Registro en OBS (puente C) ----
+// Se llama desde obs_module_post_load(). En vez de un dock listado en "Paneles"
+// (obs_frontend_add_dock_by_id), creamos un menú propio "BetterChatTV" en la
+// barra de menús de OBS (junto a Herramientas / Ayuda) que muestra un panel
+// acoplable gestionado por nosotros.
 extern "C" void betterchat_register_dock(void)
 {
+	auto *mainWindow = static_cast<QMainWindow *>(obs_frontend_get_main_window());
+	if (!mainWindow)
+		return;
+
 	auto *dock = new BetterChatDock();
 	dock->setMinimumWidth(240);
-	// id estable + título visible. La API moderna (OBS 30+) acopla el widget
-	// y OBS gestiona su QDockWidget contenedor.
-	obs_frontend_add_dock_by_id("betterchat-dock", "BetterChatTV", dock);
+
+	// Contenedor acoplable propio (NO via obs_frontend_add_dock_by_id, para que
+	// no aparezca en el menú "Paneles"). Empieza flotante y oculto.
+	auto *dockWidget = new QDockWidget(QStringLiteral("BetterChatTV"), mainWindow);
+	dockWidget->setObjectName(QStringLiteral("BetterChatTVDock"));
+	dockWidget->setWidget(dock);
+	dockWidget->setFloating(true);
+	dockWidget->setAllowedAreas(Qt::AllDockWidgetAreas);
+	mainWindow->addDockWidget(Qt::RightDockWidgetArea, dockWidget);
+	dockWidget->hide();
+
+	// Menú de nivel superior en la barra de OBS.
+	QMenuBar *menuBar = mainWindow->menuBar();
+	auto *menu = menuBar->addMenu(QStringLiteral("BetterChatTV"));
+
+	auto *toggleAction = menu->addAction(QStringLiteral("Mostrar panel de BetterChatTV"));
+	toggleAction->setCheckable(true);
+	QObject::connect(toggleAction, &QAction::toggled, dockWidget,
+			 [dockWidget](bool on) { dockWidget->setVisible(on); });
+	// Mantener el check sincronizado si el usuario cierra el panel con la X.
+	QObject::connect(dockWidget, &QDockWidget::visibilityChanged, toggleAction, [toggleAction](bool visible) {
+		QSignalBlocker block(toggleAction);
+		toggleAction->setChecked(visible);
+	});
 }

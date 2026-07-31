@@ -84,12 +84,10 @@ bool enumItem(obs_scene_t *, obs_sceneitem_t *item, void *param)
 	vec2 scale;
 	obs_sceneitem_get_scale(item, &scale);
 
-	std::string key = std::string(sceneName ? sceneName : "") + "#" +
-			  std::to_string(obs_sceneitem_get_id(item));
+	std::string key = std::string(sceneName ? sceneName : "") + "#" + std::to_string(obs_sceneitem_get_id(item));
 
 	// Escala 1 (o volteada): nada que hacer.
-	if (scale.x <= 0 || scale.y <= 0 ||
-	    (std::fabs(scale.x - 1) < kEps && std::fabs(scale.y - 1) < kEps)) {
+	if (scale.x <= 0 || scale.y <= 0 || (std::fabs(scale.x - 1) < kEps && std::fabs(scale.y - 1) < kEps)) {
 		g_tracked.erase(key);
 		obs_data_release(settings);
 		return true;
@@ -119,8 +117,8 @@ bool enumItem(obs_scene_t *, obs_sceneitem_t *item, void *param)
 		obs_sceneitem_set_scale(item, &one);
 
 		g_tracked.erase(key);
-		obs_log(LOG_INFO, "[betterchat] '%s': resolucion ajustada a %dx%d",
-			obs_source_get_name(source), nw, nh);
+		obs_log(LOG_INFO, "[betterchat] '%s': resolucion ajustada a %dx%d", obs_source_get_name(source), nw,
+			nh);
 	}
 
 	obs_data_release(settings);
