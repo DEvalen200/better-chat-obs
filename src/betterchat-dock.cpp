@@ -24,6 +24,12 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QComboBox>
 #include <QUrl>
 #include <QUrlQuery>
+#include <QIcon>
+#include <QPixmap>
+#include <QSize>
+#include <QPainter>
+#include <QPen>
+#include <QColor>
 #include <QMainWindow>
 #include <QMenuBar>
 #include <QMenu>
@@ -67,6 +73,10 @@ QListWidget#chatList {
 QListWidget#chatList::item { padding: 7px 8px; border-radius: 6px; }
 QListWidget#chatList::item:selected { background: #ff4d8d; color: #1a0c12; }
 QPushButton#ghost:disabled { color: #6b5a53; border-color: #2b1f1b; }
+QPushButton#trash {
+	background: transparent; border: 1px solid transparent; border-radius: 6px;
+}
+QPushButton#trash:hover { background: #3a1f28; border-color: #ff4d8d; }
 QComboBox {
 	background: #2b1f1b; color: #f6eeea; border: 1px solid #3a2a25;
 	border-radius: 6px; padding: 4px 8px;
@@ -210,7 +220,6 @@ void BetterChatDock::buildUi()
 		connect(m_chatList, &QListWidget::itemSelectionChanged, this, [this]() {
 			bool sel = m_chatList->currentItem() != nullptr;
 			m_addSelBtn->setEnabled(sel);
-			m_removeSelBtn->setEnabled(sel);
 			updateSettingsPanel();
 		});
 		// Solo al CLICAR el usuario (no en refrescos programáticos) saltamos a la
@@ -219,18 +228,14 @@ void BetterChatDock::buildUi()
 			[this](QListWidgetItem *) { focusSelectedChatInObs(); });
 		v->addWidget(m_chatList, 1);
 
-		// Acciones sobre la seleccionada: añadirla a la escena actual o quitarla.
+		// Acción sobre la seleccionada: añadirla a la escena actual. (Quitar va
+		// como botón de papelera en cada fila de la lista.)
 		auto *selRow = new QHBoxLayout();
 		m_addSelBtn = new QPushButton(QStringLiteral("Añadir a esta escena"), page);
 		m_addSelBtn->setObjectName(QStringLiteral("ghost"));
 		m_addSelBtn->setEnabled(false);
 		connect(m_addSelBtn, &QPushButton::clicked, this, &BetterChatDock::onAddSelectedToScene);
 		selRow->addWidget(m_addSelBtn, 1);
-		m_removeSelBtn = new QPushButton(QStringLiteral("Quitar"), page);
-		m_removeSelBtn->setObjectName(QStringLiteral("ghost"));
-		m_removeSelBtn->setEnabled(false);
-		connect(m_removeSelBtn, &QPushButton::clicked, this, &BetterChatDock::onRemoveSelected);
-		selRow->addWidget(m_removeSelBtn, 0);
 		v->addLayout(selRow);
 
 		// Panel de ajustes de la instancia seleccionada (dirección / alineación).
@@ -410,16 +415,72 @@ void BetterChatDock::refreshChatList()
 		return;
 	QString prevSelected;
 	if (m_chatList->currentItem())
-		prevSelected = m_chatList->currentItem()->text();
+		prevSelected = m_chatList->currentItem()->data(Qt::UserRole + 2).toString();
 
 	m_chatList->clear();
 	QList<ChatInfo> chats;
 	obs_enum_sources(collectChatSources, &chats);
 	for (const auto &c : chats) {
 		QString label = QStringLiteral("%1  (%2×%3)").arg(c.name).arg(c.width).arg(c.height);
-		auto *item = new QListWidgetItem(label, m_chatList);
-		item->setData(Qt::UserRole, c.name); // nombre real de la fuente
-		item->setData(Qt::UserRole + 1, c.url); // url actual (con sus query params)
+		auto *item = new QListWidgetItem(m_chatList);
+		item->setData(Qt::UserRole, c.name);      // nombre real de la fuente
+		item->setData(Qt::UserRole + 1, c.url);   // url actual (con sus query params)
+		item->setData(Qt::UserRole + 2, label);   // etiqueta (para restaurar selección)
+
+		// Widget de fila: etiqueta a la izquierda + botón papelera a la derecha.
+		auto *rowW = new QWidget(m_chatList);
+		auto *rowL = new QHBoxLayout(rowW);
+		rowL->setContentsMargins(2, 0, 2, 0);
+		rowL->setSpacing(6);
+		auto *lbl = new QLabel(label, rowW);
+		rowL->addWidget(lbl, 1);
+		auto *delBtn = new QPushButton(rowW);
+		delBtn->setObjectName(QStringLiteral("trash"));
+		delBtn->setToolTip(QStringLiteral("Eliminar este chat"));
+		delBtn->setCursor(Qt::PointingHandCursor);
+		delBtn->setFixedSize(26, 26);
+		// Icono papelera dibujado con QPainter (sin depender del plugin SVG de Qt,
+		// que puede no venir en el OBS de Windows). Trazo estilo Lucide.
+		{
+			QPixmap pm(32, 32);
+			pm.fill(Qt::transparent);
+			QPainter p(&pm);
+			p.setRenderHint(QPainter::Antialiasing, true);
+			QPen pen(QColor("#b9a49c"));
+			pen.setWidthF(2.2);
+			pen.setCapStyle(Qt::RoundCap);
+			pen.setJoinStyle(Qt::RoundJoin);
+			p.setPen(pen);
+			// Tapa + asa.
+			p.drawLine(6, 9, 26, 9);
+			p.drawLine(13, 9, 13, 6);
+			p.drawLine(19, 9, 19, 6);
+			p.drawLine(13, 6, 19, 6);
+			// Cubo.
+			p.drawLine(8, 9, 9, 26);
+			p.drawLine(24, 9, 23, 26);
+			p.drawLine(9, 26, 23, 26);
+			// Rayas verticales.
+			p.drawLine(13, 13, 13, 22);
+			p.drawLine(19, 13, 19, 22);
+			p.end();
+			delBtn->setIcon(QIcon(pm));
+			delBtn->setIconSize(QSize(16, 16));
+		}
+		QString chatName = c.name;
+		connect(delBtn, &QPushButton::clicked, this, [this, chatName]() {
+			obs_source_t *source = obs_get_source_by_name(chatName.toUtf8().constData());
+			if (source) {
+				obs_source_remove(source);
+				obs_source_release(source);
+				m_actionStatus->setText(QStringLiteral("\"%1\" eliminado.").arg(chatName));
+			}
+			refreshChatList();
+		});
+		rowL->addWidget(delBtn, 0);
+		item->setSizeHint(rowW->sizeHint());
+		m_chatList->setItemWidget(item, rowW);
+
 		if (label == prevSelected)
 			m_chatList->setCurrentItem(item);
 	}
@@ -630,23 +691,6 @@ void BetterChatDock::onAddSelectedToScene()
 	obs_source_release(source);
 	obs_source_release(sceneSource);
 	m_actionStatus->setText(QStringLiteral("\"%1\" añadido a la escena actual.").arg(name));
-}
-
-// ---- Quitar la instancia seleccionada ----
-
-void BetterChatDock::onRemoveSelected()
-{
-	auto *item = m_chatList->currentItem();
-	if (!item)
-		return;
-	QString name = item->data(Qt::UserRole).toString();
-	obs_source_t *source = obs_get_source_by_name(name.toUtf8().constData());
-	if (source) {
-		obs_source_remove(source); // lo saca de todas las escenas
-		obs_source_release(source);
-		m_actionStatus->setText(QStringLiteral("\"%1\" eliminado.").arg(name));
-	}
-	refreshChatList();
 }
 
 void BetterChatDock::onLogout()

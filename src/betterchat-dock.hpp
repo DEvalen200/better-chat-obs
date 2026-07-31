@@ -43,7 +43,6 @@ private slots:
 	void onStatusUpdated();
 	void onCreateChat();       // crea una instancia NUEVA en la escena actual
 	void onAddSelectedToScene(); // añade la seleccionada a la escena actual (referencia)
-	void onRemoveSelected();   // elimina la instancia seleccionada
 	void onChatSettingChanged(); // aplica dirección/alineación a la seleccionada
 	void onLogout();
 	void refreshChatList();    // invocable desde los signals de OBS (por nombre)
@@ -77,7 +76,6 @@ private:
 	QListWidget *m_chatList = nullptr;
 	QPushButton *m_createBtn = nullptr;
 	QPushButton *m_addSelBtn = nullptr;
-	QPushButton *m_removeSelBtn = nullptr;
 	// Panel de ajustes por instancia (dirección / alineación).
 	QWidget *m_settingsPanel = nullptr;
 	QComboBox *m_dirCombo = nullptr;
