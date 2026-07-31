@@ -30,6 +30,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QPainter>
 #include <QPen>
 #include <QColor>
+#include <QSizePolicy>
 #include <QMainWindow>
 #include <QMenuBar>
 #include <QMenu>
@@ -70,7 +71,7 @@ QListWidget#chatList {
 	background: #211815; border: 1px solid #3a2a25; border-radius: 8px;
 	color: #f6eeea; padding: 4px; outline: 0;
 }
-QListWidget#chatList::item { padding: 7px 8px; border-radius: 6px; }
+QListWidget#chatList::item { padding: 3px 2px; border-radius: 6px; }
 QListWidget#chatList::item:selected { background: #ff4d8d; color: #1a0c12; }
 QPushButton#ghost:disabled { color: #6b5a53; border-color: #2b1f1b; }
 QPushButton#trash {
@@ -430,9 +431,12 @@ void BetterChatDock::refreshChatList()
 		// Widget de fila: etiqueta a la izquierda + botón papelera a la derecha.
 		auto *rowW = new QWidget(m_chatList);
 		auto *rowL = new QHBoxLayout(rowW);
-		rowL->setContentsMargins(2, 0, 2, 0);
+		rowL->setContentsMargins(6, 2, 8, 2);
 		rowL->setSpacing(6);
 		auto *lbl = new QLabel(label, rowW);
+		lbl->setMinimumWidth(0);
+		lbl->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		lbl->setToolTip(label); // el nombre completo, por si se recorta
 		rowL->addWidget(lbl, 1);
 		auto *delBtn = new QPushButton(rowW);
 		delBtn->setObjectName(QStringLiteral("trash"));
