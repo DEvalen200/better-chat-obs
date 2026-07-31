@@ -80,10 +80,11 @@ private:
 	QListWidget *m_chatList = nullptr;
 	QPushButton *m_createBtn = nullptr;
 	QPushButton *m_addSelBtn = nullptr;
-	// Panel de ajustes por instancia (dirección / alineación).
+	// Panel de ajustes por instancia (dirección / alineación / escala).
 	QWidget *m_settingsPanel = nullptr;
 	QComboBox *m_dirCombo = nullptr;
 	QComboBox *m_alignCombo = nullptr;
+	QComboBox *m_scaleCombo = nullptr;
 	bool m_updatingPanel = false; // evita realimentar señales al rellenar los combos
 	QPushButton *m_logoutBtn = nullptr;
 	QLabel *m_actionStatus = nullptr;

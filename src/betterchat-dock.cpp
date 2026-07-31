@@ -24,6 +24,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QComboBox>
 #include <QCheckBox>
 #include <QTimer>
+#include <QtMath>
 #include <QUrl>
 #include <QUrlQuery>
 #include <QIcon>
@@ -289,6 +290,19 @@ void BetterChatDock::buildUi()
 			&BetterChatDock::onChatSettingChanged);
 		alignRow->addWidget(m_alignCombo, 1);
 		sv->addLayout(alignRow);
+
+		auto *scaleRow = new QHBoxLayout();
+		auto *scaleLabel = new QLabel(QStringLiteral("Escala"), m_settingsPanel);
+		scaleLabel->setObjectName(QStringLiteral("muted"));
+		scaleRow->addWidget(scaleLabel, 1);
+		m_scaleCombo = new QComboBox(m_settingsPanel);
+		const int scales[] = {50, 75, 90, 100, 125, 150, 175, 200, 250, 300};
+		for (int s : scales)
+			m_scaleCombo->addItem(QStringLiteral("%1%").arg(s), s);
+		connect(m_scaleCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+			&BetterChatDock::onChatSettingChanged);
+		scaleRow->addWidget(m_scaleCombo, 1);
+		sv->addLayout(scaleRow);
 
 		m_settingsPanel->setVisible(false);
 		v->addWidget(m_settingsPanel);
@@ -559,6 +573,7 @@ void BetterChatDock::updateSettingsPanel()
 	QUrlQuery q(QUrl(url).query());
 	QString dir = q.queryItemValue(QStringLiteral("dir"));
 	QString align = q.queryItemValue(QStringLiteral("align"));
+	QString scale = q.queryItemValue(QStringLiteral("scale"));
 
 	// Rellenar los combos sin disparar onChatSettingChanged.
 	m_updatingPanel = true;
@@ -566,6 +581,20 @@ void BetterChatDock::updateSettingsPanel()
 	m_dirCombo->setCurrentIndex(dirIdx);
 	int alignIdx = align == QStringLiteral("center") ? 1 : align == QStringLiteral("right") ? 2 : 0;
 	m_alignCombo->setCurrentIndex(alignIdx);
+	// Escala: la URL guarda una fracción (1.0=100%); el combo usa enteros de %.
+	int scalePct = 100;
+	if (!scale.isEmpty()) {
+		double f = scale.toDouble();
+		if (f > 0)
+			scalePct = (int)qRound(f * 100.0);
+	}
+	int scaleIdx = m_scaleCombo->findData(scalePct);
+	if (scaleIdx < 0) {
+		// Valor no listado: añadirlo temporalmente para reflejarlo.
+		m_scaleCombo->addItem(QStringLiteral("%1%").arg(scalePct), scalePct);
+		scaleIdx = m_scaleCombo->count() - 1;
+	}
+	m_scaleCombo->setCurrentIndex(scaleIdx);
 	m_updatingPanel = false;
 
 	m_settingsPanel->setVisible(true);
@@ -577,6 +606,10 @@ void BetterChatDock::onChatSettingChanged()
 		return;
 	setSelectedChatParam(QStringLiteral("dir"), m_dirCombo->currentData().toString());
 	setSelectedChatParam(QStringLiteral("align"), m_alignCombo->currentData().toString());
+	// Escala como fracción con hasta 2 decimales (100 -> "1", 150 -> "1.5").
+	double f = m_scaleCombo->currentData().toInt() / 100.0;
+	setSelectedChatParam(QStringLiteral("scale"),
+			     QString::number(f, 'g', 4));
 }
 
 // Cambia a la primera escena que contiene la fuente seleccionada y la marca como
