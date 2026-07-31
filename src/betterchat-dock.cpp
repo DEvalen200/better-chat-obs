@@ -538,7 +538,9 @@ void BetterChatDock::refreshChatList()
 	}
 	if (chats.isEmpty())
 		m_actionStatus->setText(QStringLiteral(
-			"Aún no tienes ningún chat. Crea uno con el botón de abajo."));
+			"Aún no tienes ningún chat. Crea uno con el botón \"Crear chat nuevo en esta escena\"."));
+	else
+		m_actionStatus->clear();
 	updateSettingsPanel();
 }
 
