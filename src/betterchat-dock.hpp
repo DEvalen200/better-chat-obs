@@ -12,6 +12,9 @@ the Free Software Foundation; either version 2 of the License, or
 
 #include <QWidget>
 
+struct calldata;
+typedef struct calldata calldata_t;
+
 class BetterChatApi;
 class QStackedWidget;
 class QLabel;
@@ -40,10 +43,14 @@ private slots:
 	void onAddSelectedToScene(); // añade la seleccionada a la escena actual (referencia)
 	void onRemoveSelected();   // elimina la instancia seleccionada
 	void onLogout();
+	void refreshChatList();    // invocable desde los signals de OBS (por nombre)
 
 private:
 	void buildUi();
-	void refreshChatList();
+	void connectObsSignals();
+	void disconnectObsSignals();
+	// Trampolín estático para los signals globales de OBS (source_create/destroy/remove).
+	static void obsSignalTrampoline(void *data, calldata_t *cd);
 	// Crea una fuente de chat con nombre único y la añade a la escena activa.
 	void createChatInCurrentScene(const QString &url);
 

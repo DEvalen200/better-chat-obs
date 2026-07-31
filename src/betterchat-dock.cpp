@@ -14,7 +14,6 @@ the Free Software Foundation; either version 2 of the License, or
 #include <obs.h>
 #include <obs-frontend-api.h>
 #include <plugin-support.h>
-
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QStackedWidget>
@@ -85,9 +84,44 @@ BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
 	} else {
 		m_stack->setCurrentIndex(0);
 	}
+
+	// Escuchar eventos globales de OBS para refrescar la lista al instante
+	// cuando se crean/eliminan fuentes desde OBS (no solo desde el plugin).
+	connectObsSignals();
 }
 
-BetterChatDock::~BetterChatDock() = default;
+BetterChatDock::~BetterChatDock()
+{
+	disconnectObsSignals();
+}
+
+// Trampolín para los signals globales de OBS. Llega desde OTRO hilo, así que
+// solo marshala un refresco al hilo de UI de Qt (nunca tocar widgets aquí).
+void BetterChatDock::obsSignalTrampoline(void *data, calldata_t *)
+{
+	auto *self = static_cast<BetterChatDock *>(data);
+	QMetaObject::invokeMethod(self, "refreshChatList", Qt::QueuedConnection);
+}
+
+void BetterChatDock::connectObsSignals()
+{
+	signal_handler_t *sh = obs_get_signal_handler();
+	if (!sh)
+		return;
+	signal_handler_connect(sh, "source_create", &BetterChatDock::obsSignalTrampoline, this);
+	signal_handler_connect(sh, "source_destroy", &BetterChatDock::obsSignalTrampoline, this);
+	signal_handler_connect(sh, "source_remove", &BetterChatDock::obsSignalTrampoline, this);
+}
+
+void BetterChatDock::disconnectObsSignals()
+{
+	signal_handler_t *sh = obs_get_signal_handler();
+	if (!sh)
+		return;
+	signal_handler_disconnect(sh, "source_create", &BetterChatDock::obsSignalTrampoline, this);
+	signal_handler_disconnect(sh, "source_destroy", &BetterChatDock::obsSignalTrampoline, this);
+	signal_handler_disconnect(sh, "source_remove", &BetterChatDock::obsSignalTrampoline, this);
+}
 
 void BetterChatDock::buildUi()
 {
