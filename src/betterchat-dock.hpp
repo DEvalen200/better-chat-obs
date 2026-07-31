@@ -22,6 +22,8 @@ class QPushButton;
 class QListWidget;
 class QComboBox;
 class QWidget;
+class QCheckBox;
+class QTimer;
 
 // Dock acoplable de BetterChatTV dentro de OBS. Dos vistas:
 //  - Deslogueado: botón para vincular la cuenta (device-flow).
@@ -44,6 +46,8 @@ private slots:
 	void onCreateChat();       // crea una instancia NUEVA en la escena actual
 	void onAddSelectedToScene(); // añade la seleccionada a la escena actual (referencia)
 	void onChatSettingChanged(); // aplica dirección/alineación a la seleccionada
+	void onAutoTestToggled(bool on); // activa/desactiva mensajes de prueba automáticos
+	void onClearChat();          // limpia el chat del overlay
 	void onLogout();
 	void refreshChatList();    // invocable desde los signals de OBS (por nombre)
 
@@ -83,4 +87,8 @@ private:
 	bool m_updatingPanel = false; // evita realimentar señales al rellenar los combos
 	QPushButton *m_logoutBtn = nullptr;
 	QLabel *m_actionStatus = nullptr;
+	// Herramientas de prueba (mensajes automáticos + limpiar).
+	QCheckBox *m_autoTestCheck = nullptr;
+	QTimer *m_autoTestTimer = nullptr;
+	QPushButton *m_clearBtn = nullptr;
 };

@@ -42,6 +42,10 @@ public:
 	// Arranca/para el sondeo periodico de estado (directo/no directo).
 	void startStatusPolling(int intervalMs = 20000);
 	void stopStatusPolling();
+	// Emite un mensaje de prueba automático en el overlay (POST /api/plugin/test-message).
+	void sendAutoTestMessage();
+	// Limpia el chat del overlay (POST /api/plugin/clear).
+	void clearChat();
 
 signals:
 	// Emitido con el user_code y la verify_url para mostrarlos en el dock.
@@ -51,6 +55,8 @@ signals:
 	void loggedOut();
 	void statusUpdated(); // username/overlayUrl/live actualizados
 	void statusError(const QString &message);
+	// Resultado de una acción de chat (test/clear): ok o mensaje de error.
+	void chatActionResult(bool ok, const QString &message);
 
 private slots:
 	void pollPairing();

@@ -22,6 +22,8 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QFrame>
 #include <QListWidget>
 #include <QComboBox>
+#include <QCheckBox>
+#include <QTimer>
 #include <QUrl>
 #include <QUrlQuery>
 #include <QIcon>
@@ -86,6 +88,13 @@ QComboBox QAbstractItemView {
 	background: #2b1f1b; color: #f6eeea; selection-background-color: #ff4d8d;
 	selection-color: #1a0c12; border: 1px solid #3a2a25;
 }
+QCheckBox { color: #f6eeea; font-size: 12px; spacing: 6px; }
+QCheckBox::indicator {
+	width: 16px; height: 16px; border-radius: 4px;
+	border: 1px solid #3a2a25; background: #2b1f1b;
+}
+QCheckBox::indicator:checked { background: #ff4d8d; border-color: #ff4d8d; }
+QFrame#sep { color: #3a2a25; max-height: 1px; }
 )CSS";
 
 BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
@@ -98,6 +107,13 @@ BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
 	connect(m_api, &BetterChatApi::loggedIn, this, &BetterChatDock::onLoggedIn);
 	connect(m_api, &BetterChatApi::loggedOut, this, &BetterChatDock::onLoggedOut);
 	connect(m_api, &BetterChatApi::statusUpdated, this, &BetterChatDock::onStatusUpdated);
+	connect(m_api, &BetterChatApi::chatActionResult, this, [this](bool ok, const QString &msg) {
+		if (!msg.isEmpty())
+			m_actionStatus->setText(msg);
+		// Si falla el envío auto (p.ej. sin overlay), desactivar el toggle.
+		if (!ok && m_autoTestCheck && m_autoTestCheck->isChecked())
+			m_autoTestCheck->setChecked(false);
+	});
 
 	if (m_api->isLoggedIn()) {
 		m_stack->setCurrentIndex(1);
@@ -285,6 +301,28 @@ void BetterChatDock::buildUi()
 		m_actionStatus->setWordWrap(true);
 		v->addWidget(m_actionStatus);
 
+		// Herramientas de prueba: separador + mensajes automáticos + limpiar.
+		auto *sep = new QFrame(page);
+		sep->setFrameShape(QFrame::HLine);
+		sep->setObjectName(QStringLiteral("sep"));
+		v->addWidget(sep);
+
+		auto *toolsRow = new QHBoxLayout();
+		m_autoTestCheck = new QCheckBox(QStringLiteral("Mensajes de prueba automáticos"), page);
+		connect(m_autoTestCheck, &QCheckBox::toggled, this, &BetterChatDock::onAutoTestToggled);
+		toolsRow->addWidget(m_autoTestCheck, 1);
+		m_clearBtn = new QPushButton(QStringLiteral("Limpiar chat"), page);
+		m_clearBtn->setObjectName(QStringLiteral("ghost"));
+		connect(m_clearBtn, &QPushButton::clicked, this, &BetterChatDock::onClearChat);
+		toolsRow->addWidget(m_clearBtn, 0);
+		v->addLayout(toolsRow);
+
+		// Timer que dispara los mensajes de prueba automáticos (~cada 1.5s).
+		m_autoTestTimer = new QTimer(this);
+		m_autoTestTimer->setInterval(1500);
+		connect(m_autoTestTimer, &QTimer::timeout, this,
+			[this]() { m_api->sendAutoTestMessage(); });
+
 		m_logoutBtn = new QPushButton(QStringLiteral("Cerrar sesión"), page);
 		m_logoutBtn->setObjectName(QStringLiteral("ghost"));
 		connect(m_logoutBtn, &QPushButton::clicked, this, &BetterChatDock::onLogout);
@@ -331,6 +369,10 @@ void BetterChatDock::onLoggedIn()
 
 void BetterChatDock::onLoggedOut()
 {
+	if (m_autoTestTimer)
+		m_autoTestTimer->stop();
+	if (m_autoTestCheck)
+		m_autoTestCheck->setChecked(false);
 	m_stack->setCurrentIndex(0);
 	m_loginBtn->setEnabled(true);
 	m_loginStatus->clear();
@@ -700,6 +742,25 @@ void BetterChatDock::onAddSelectedToScene()
 void BetterChatDock::onLogout()
 {
 	m_api->logout();
+}
+
+// ---- Herramientas de prueba ----
+
+void BetterChatDock::onAutoTestToggled(bool on)
+{
+	if (on) {
+		m_api->sendAutoTestMessage(); // uno inmediato para feedback rápido
+		m_autoTestTimer->start();
+		m_actionStatus->setText(QStringLiteral("Enviando mensajes de prueba…"));
+	} else {
+		m_autoTestTimer->stop();
+		m_actionStatus->clear();
+	}
+}
+
+void BetterChatDock::onClearChat()
+{
+	m_api->clearChat();
 }
 
 // ---- Registro en OBS (puente C) ----

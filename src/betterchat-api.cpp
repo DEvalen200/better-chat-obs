@@ -204,6 +204,42 @@ void BetterChatApi::stopStatusPolling()
 	m_statusTimer.stop();
 }
 
+void BetterChatApi::sendAutoTestMessage()
+{
+	if (m_token.isEmpty())
+		return;
+	QNetworkReply *reply = m_net.post(apiRequest(QStringLiteral("/api/plugin/test-message"), true),
+					  QByteArray("{\"auto\":true}"));
+	connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+		reply->deleteLater();
+		int code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		if (code == 409) {
+			emit chatActionResult(false, tr("Abre el overlay del chat en OBS para ver los mensajes."));
+		} else if (reply->error() != QNetworkReply::NoError) {
+			emit chatActionResult(false, tr("No se pudo enviar el mensaje de prueba."));
+		}
+		// ok: no molestamos con mensaje (llegan a ritmo).
+	});
+}
+
+void BetterChatApi::clearChat()
+{
+	if (m_token.isEmpty())
+		return;
+	QNetworkReply *reply =
+		m_net.post(apiRequest(QStringLiteral("/api/plugin/clear"), true), QByteArray("{}"));
+	connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+		reply->deleteLater();
+		int code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		if (code == 409)
+			emit chatActionResult(false, tr("Abre el overlay del chat en OBS primero."));
+		else if (reply->error() != QNetworkReply::NoError)
+			emit chatActionResult(false, tr("No se pudo limpiar el chat."));
+		else
+			emit chatActionResult(true, tr("Chat limpiado."));
+	});
+}
+
 void BetterChatApi::logout()
 {
 	if (!m_token.isEmpty()) {
