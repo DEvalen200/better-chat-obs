@@ -213,6 +213,10 @@ void BetterChatDock::buildUi()
 			m_removeSelBtn->setEnabled(sel);
 			updateSettingsPanel();
 		});
+		// Solo al CLICAR el usuario (no en refrescos programáticos) saltamos a la
+		// escena del chat y lo seleccionamos en las fuentes de OBS.
+		connect(m_chatList, &QListWidget::itemClicked, this,
+			[this](QListWidgetItem *) { focusSelectedChatInObs(); });
 		v->addWidget(m_chatList, 1);
 
 		// Acciones sobre la seleccionada: añadirla a la escena actual o quitarla.
@@ -458,6 +462,42 @@ void BetterChatDock::onChatSettingChanged()
 		return;
 	setSelectedChatParam(QStringLiteral("dir"), m_dirCombo->currentData().toString());
 	setSelectedChatParam(QStringLiteral("align"), m_alignCombo->currentData().toString());
+}
+
+// Cambia a la primera escena que contiene la fuente seleccionada y la marca como
+// seleccionada en el listado de fuentes de OBS. Comodo para editarla in situ.
+void BetterChatDock::focusSelectedChatInObs()
+{
+	auto *item = m_chatList ? m_chatList->currentItem() : nullptr;
+	if (!item)
+		return;
+	QString name = item->data(Qt::UserRole).toString();
+	QByteArray nameUtf8 = name.toUtf8();
+
+	struct obs_frontend_source_list scenes = {};
+	obs_frontend_get_scenes(&scenes);
+	for (size_t i = 0; i < scenes.sources.num; i++) {
+		obs_source_t *sceneSrc = scenes.sources.array[i];
+		obs_scene_t *scene = obs_scene_from_source(sceneSrc);
+		if (!scene)
+			continue;
+		obs_sceneitem_t *found = obs_scene_find_source(scene, nameUtf8.constData());
+		if (found) {
+			// Cambiar a esa escena y seleccionar la fuente dentro de ella.
+			obs_frontend_set_current_scene(sceneSrc);
+			// Deseleccionar el resto y seleccionar solo la nuestra.
+			obs_scene_enum_items(
+				scene,
+				[](obs_scene_t *, obs_sceneitem_t *it, void *param) -> bool {
+					auto *target = static_cast<obs_sceneitem_t *>(param);
+					obs_sceneitem_select(it, it == target);
+					return true;
+				},
+				found);
+			break;
+		}
+	}
+	obs_frontend_source_list_free(&scenes);
 }
 
 void BetterChatDock::setSelectedChatParam(const QString &key, const QString &value)

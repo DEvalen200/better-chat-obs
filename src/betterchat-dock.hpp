@@ -53,6 +53,8 @@ private:
 	void connectObsSignals();
 	void disconnectObsSignals();
 	void updateSettingsPanel(); // rellena los combos según la instancia seleccionada
+	// Cambia a la escena que contiene la fuente y la selecciona en las fuentes.
+	void focusSelectedChatInObs();
 	// Reescribe un query param en la URL de la fuente seleccionada (dir/align).
 	void setSelectedChatParam(const QString &key, const QString &value);
 	// Trampolín estático para los signals globales de OBS (source_create/destroy/remove).
