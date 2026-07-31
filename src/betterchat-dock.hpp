@@ -20,6 +20,8 @@ class QStackedWidget;
 class QLabel;
 class QPushButton;
 class QListWidget;
+class QComboBox;
+class QWidget;
 
 // Dock acoplable de BetterChatTV dentro de OBS. Dos vistas:
 //  - Deslogueado: botón para vincular la cuenta (device-flow).
@@ -42,6 +44,7 @@ private slots:
 	void onCreateChat();       // crea una instancia NUEVA en la escena actual
 	void onAddSelectedToScene(); // añade la seleccionada a la escena actual (referencia)
 	void onRemoveSelected();   // elimina la instancia seleccionada
+	void onChatSettingChanged(); // aplica dirección/alineación a la seleccionada
 	void onLogout();
 	void refreshChatList();    // invocable desde los signals de OBS (por nombre)
 
@@ -49,6 +52,9 @@ private:
 	void buildUi();
 	void connectObsSignals();
 	void disconnectObsSignals();
+	void updateSettingsPanel(); // rellena los combos según la instancia seleccionada
+	// Reescribe un query param en la URL de la fuente seleccionada (dir/align).
+	void setSelectedChatParam(const QString &key, const QString &value);
 	// Trampolín estático para los signals globales de OBS (source_create/destroy/remove).
 	static void obsSignalTrampoline(void *data, calldata_t *cd);
 	// Crea una fuente de chat con nombre único y la añade a la escena activa.
@@ -70,6 +76,11 @@ private:
 	QPushButton *m_createBtn = nullptr;
 	QPushButton *m_addSelBtn = nullptr;
 	QPushButton *m_removeSelBtn = nullptr;
+	// Panel de ajustes por instancia (dirección / alineación).
+	QWidget *m_settingsPanel = nullptr;
+	QComboBox *m_dirCombo = nullptr;
+	QComboBox *m_alignCombo = nullptr;
+	bool m_updatingPanel = false; // evita realimentar señales al rellenar los combos
 	QPushButton *m_logoutBtn = nullptr;
 	QLabel *m_actionStatus = nullptr;
 };

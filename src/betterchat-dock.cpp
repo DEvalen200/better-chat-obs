@@ -21,6 +21,9 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QPushButton>
 #include <QFrame>
 #include <QListWidget>
+#include <QComboBox>
+#include <QUrl>
+#include <QUrlQuery>
 #include <QMainWindow>
 #include <QMenuBar>
 #include <QMenu>
@@ -64,6 +67,14 @@ QListWidget#chatList {
 QListWidget#chatList::item { padding: 7px 8px; border-radius: 6px; }
 QListWidget#chatList::item:selected { background: #ff4d8d; color: #1a0c12; }
 QPushButton#ghost:disabled { color: #6b5a53; border-color: #2b1f1b; }
+QComboBox {
+	background: #2b1f1b; color: #f6eeea; border: 1px solid #3a2a25;
+	border-radius: 6px; padding: 4px 8px;
+}
+QComboBox QAbstractItemView {
+	background: #2b1f1b; color: #f6eeea; selection-background-color: #ff4d8d;
+	selection-color: #1a0c12; border: 1px solid #3a2a25;
+}
 )CSS";
 
 BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
@@ -200,6 +211,7 @@ void BetterChatDock::buildUi()
 			bool sel = m_chatList->currentItem() != nullptr;
 			m_addSelBtn->setEnabled(sel);
 			m_removeSelBtn->setEnabled(sel);
+			updateSettingsPanel();
 		});
 		v->addWidget(m_chatList, 1);
 
@@ -216,6 +228,41 @@ void BetterChatDock::buildUi()
 		connect(m_removeSelBtn, &QPushButton::clicked, this, &BetterChatDock::onRemoveSelected);
 		selRow->addWidget(m_removeSelBtn, 0);
 		v->addLayout(selRow);
+
+		// Panel de ajustes de la instancia seleccionada (dirección / alineación).
+		// Solo visible cuando hay un chat seleccionado; edita su URL (query params).
+		m_settingsPanel = new QWidget(page);
+		auto *sv = new QVBoxLayout(m_settingsPanel);
+		sv->setContentsMargins(0, 4, 0, 0);
+		sv->setSpacing(6);
+
+		auto *dirRow = new QHBoxLayout();
+		auto *dirLabel = new QLabel(QStringLiteral("Dirección"), m_settingsPanel);
+		dirLabel->setObjectName(QStringLiteral("muted"));
+		dirRow->addWidget(dirLabel, 1);
+		m_dirCombo = new QComboBox(m_settingsPanel);
+		m_dirCombo->addItem(QStringLiteral("Nuevos abajo"), QStringLiteral("down"));
+		m_dirCombo->addItem(QStringLiteral("Nuevos arriba"), QStringLiteral("up"));
+		connect(m_dirCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+			&BetterChatDock::onChatSettingChanged);
+		dirRow->addWidget(m_dirCombo, 1);
+		sv->addLayout(dirRow);
+
+		auto *alignRow = new QHBoxLayout();
+		auto *alignLabel = new QLabel(QStringLiteral("Alineación"), m_settingsPanel);
+		alignLabel->setObjectName(QStringLiteral("muted"));
+		alignRow->addWidget(alignLabel, 1);
+		m_alignCombo = new QComboBox(m_settingsPanel);
+		m_alignCombo->addItem(QStringLiteral("Izquierda"), QStringLiteral("left"));
+		m_alignCombo->addItem(QStringLiteral("Centro"), QStringLiteral("center"));
+		m_alignCombo->addItem(QStringLiteral("Derecha"), QStringLiteral("right"));
+		connect(m_alignCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+			&BetterChatDock::onChatSettingChanged);
+		alignRow->addWidget(m_alignCombo, 1);
+		sv->addLayout(alignRow);
+
+		m_settingsPanel->setVisible(false);
+		v->addWidget(m_settingsPanel);
 
 		// Crear una instancia NUEVA e independiente en la escena actual.
 		m_createBtn = new QPushButton(QStringLiteral("Crear chat nuevo en esta escena"), page);
@@ -307,11 +354,12 @@ namespace {
 // Marca propia en los settings para reconocer NUESTRAS fuentes de chat.
 constexpr const char *kChatFlag = "betterchat_instance";
 
-// Callback de enumeración: recoge nombre + tamaño de cada fuente de chat.
+// Callback de enumeración: recoge nombre + tamaño + url de cada fuente de chat.
 struct ChatInfo {
 	QString name;
 	int width;
 	int height;
+	QString url;
 };
 
 bool collectChatSources(void *param, obs_source_t *source)
@@ -343,6 +391,8 @@ bool collectChatSources(void *param, obs_source_t *source)
 		info.name = QString::fromUtf8(obs_source_get_name(source));
 		info.width = (int)obs_data_get_int(settings, "width");
 		info.height = (int)obs_data_get_int(settings, "height");
+		const char *u = obs_data_get_string(settings, "url");
+		info.url = u ? QString::fromUtf8(u) : QString();
 		out->append(info);
 	}
 	obs_data_release(settings);
@@ -365,12 +415,79 @@ void BetterChatDock::refreshChatList()
 		QString label = QStringLiteral("%1  (%2×%3)").arg(c.name).arg(c.width).arg(c.height);
 		auto *item = new QListWidgetItem(label, m_chatList);
 		item->setData(Qt::UserRole, c.name); // nombre real de la fuente
+		item->setData(Qt::UserRole + 1, c.url); // url actual (con sus query params)
 		if (label == prevSelected)
 			m_chatList->setCurrentItem(item);
 	}
 	if (chats.isEmpty())
 		m_actionStatus->setText(QStringLiteral(
 			"Aún no tienes ningún chat. Crea uno con el botón de abajo."));
+	updateSettingsPanel();
+}
+
+// ---- Panel de ajustes por instancia (dirección / alineación) ----
+
+void BetterChatDock::updateSettingsPanel()
+{
+	if (!m_settingsPanel)
+		return;
+	auto *item = m_chatList ? m_chatList->currentItem() : nullptr;
+	if (!item) {
+		m_settingsPanel->setVisible(false);
+		return;
+	}
+	QString url = item->data(Qt::UserRole + 1).toString();
+	QUrlQuery q(QUrl(url).query());
+	QString dir = q.queryItemValue(QStringLiteral("dir"));
+	QString align = q.queryItemValue(QStringLiteral("align"));
+
+	// Rellenar los combos sin disparar onChatSettingChanged.
+	m_updatingPanel = true;
+	int dirIdx = (dir == QStringLiteral("up") || dir == QStringLiteral("top")) ? 1 : 0;
+	m_dirCombo->setCurrentIndex(dirIdx);
+	int alignIdx = align == QStringLiteral("center") ? 1 : align == QStringLiteral("right") ? 2 : 0;
+	m_alignCombo->setCurrentIndex(alignIdx);
+	m_updatingPanel = false;
+
+	m_settingsPanel->setVisible(true);
+}
+
+void BetterChatDock::onChatSettingChanged()
+{
+	if (m_updatingPanel)
+		return;
+	setSelectedChatParam(QStringLiteral("dir"), m_dirCombo->currentData().toString());
+	setSelectedChatParam(QStringLiteral("align"), m_alignCombo->currentData().toString());
+}
+
+void BetterChatDock::setSelectedChatParam(const QString &key, const QString &value)
+{
+	auto *item = m_chatList ? m_chatList->currentItem() : nullptr;
+	if (!item)
+		return;
+	QString name = item->data(Qt::UserRole).toString();
+	obs_source_t *source = obs_get_source_by_name(name.toUtf8().constData());
+	if (!source)
+		return;
+
+	obs_data_t *settings = obs_source_get_settings(source);
+	const char *urlC = obs_data_get_string(settings, "url");
+	QUrl url(urlC ? QString::fromUtf8(urlC) : QString());
+	QUrlQuery q(url.query());
+	q.removeQueryItem(key);
+	q.addQueryItem(key, value);
+	url.setQuery(q);
+	QString newUrl = url.toString();
+
+	obs_data_set_string(settings, "url", newUrl.toUtf8().constData());
+	obs_source_update(source, settings);
+	obs_data_release(settings);
+	obs_source_release(source);
+
+	// Actualizar la url guardada en el item para no perder el estado.
+	item->setData(Qt::UserRole + 1, newUrl);
+	obs_log(LOG_INFO, "[betterchat] '%s' %s=%s", name.toUtf8().constData(),
+		key.toUtf8().constData(), value.toUtf8().constData());
 }
 
 // ---- Crear una instancia NUEVA (fuente independiente, su propio tamaño) ----
