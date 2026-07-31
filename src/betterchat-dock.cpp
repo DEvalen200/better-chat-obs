@@ -270,11 +270,10 @@ void BetterChatDock::onStatusUpdated()
 // ---- Lista de instancias de chat ----
 
 namespace {
-// Marca propia en los settings para reconocer NUESTRAS fuentes de chat, sin
-// depender de la URL (que puede variar). Las creadas por el plugin la llevan.
+// Marca propia en los settings para reconocer NUESTRAS fuentes de chat.
 constexpr const char *kChatFlag = "betterchat_instance";
 
-// Callback de enumeración: recoge nombre + tamaño de cada fuente de chat nuestra.
+// Callback de enumeración: recoge nombre + tamaño de cada fuente de chat.
 struct ChatInfo {
 	QString name;
 	int width;
@@ -288,7 +287,23 @@ bool collectChatSources(void *param, obs_source_t *source)
 	if (!id || QString(id) != QStringLiteral("browser_source"))
 		return true;
 	obs_data_t *settings = obs_source_get_settings(source);
+
+	// Es un chat de BetterChatTV si:
+	//  a) lo creó el plugin (lleva el flag), o
+	//  b) es un browser source cuya URL contiene "betterchat" (creado a mano).
 	bool mine = obs_data_get_bool(settings, kChatFlag);
+	if (!mine) {
+		const char *urlC = obs_data_get_string(settings, "url");
+		bool isLocal = obs_data_get_bool(settings, "is_local_file");
+		QString url = urlC ? QString::fromUtf8(urlC) : QString();
+		if (!isLocal && url.contains(QStringLiteral("betterchat"), Qt::CaseInsensitive)) {
+			mine = true;
+			// Adoptar: marcarla para futuras detecciones y persistir.
+			obs_data_set_bool(settings, kChatFlag, true);
+			obs_source_update(source, settings);
+		}
+	}
+
 	if (mine) {
 		ChatInfo info;
 		info.name = QString::fromUtf8(obs_source_get_name(source));
