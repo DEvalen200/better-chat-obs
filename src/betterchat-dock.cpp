@@ -352,9 +352,10 @@ void BetterChatDock::createChatInCurrentScene(const QString &url)
 		return;
 	}
 
-	// Nombre ÚNICO: "BetterChatTV Chat", "BetterChatTV Chat 2", ... Buscamos el
-	// primer numero libre para no colisionar con fuentes existentes.
-	QString baseName = QStringLiteral("BetterChatTV Chat");
+	// Nombre basado en la escena: "BetterChatTV Chat - <Escena>", y si ya hay uno
+	// en esa escena, "... - <Escena> 2", "... 3", etc. Mas legible que enumerar.
+	QString sceneName = QString::fromUtf8(obs_source_get_name(sceneSource));
+	QString baseName = QStringLiteral("BetterChatTV Chat - %1").arg(sceneName);
 	QString name = baseName;
 	int n = 1;
 	while (true) {
