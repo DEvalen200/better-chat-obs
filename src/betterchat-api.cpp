@@ -188,6 +188,7 @@ void BetterChatApi::refreshStatus()
 		m_overlayUrl = obj.value(QStringLiteral("overlayUrl")).toString();
 		m_live = obj.value(QStringLiteral("live")).toBool();
 		m_platform = obj.value(QStringLiteral("platform")).toString();
+		m_autoTest = obj.value(QStringLiteral("autoTest")).toBool();
 		emit statusUpdated();
 	});
 }
@@ -219,6 +220,33 @@ void BetterChatApi::sendAutoTestMessage()
 			emit chatActionResult(false, tr("No se pudo enviar el mensaje de prueba."));
 		}
 		// ok: no molestamos con mensaje (llegan a ritmo).
+	});
+}
+
+// Activa/desactiva los mensajes automáticos en el SERVIDOR (sincronizado con la web
+// y con el overlay). El servidor mantiene un solo timer por sala; aquí solo enviamos
+// el estado deseado. El estado real vuelve por el sondeo de status (autoTest).
+void BetterChatApi::setAutoTest(bool active)
+{
+	if (m_token.isEmpty())
+		return;
+	QByteArray body = active ? QByteArray("{\"active\":true}") : QByteArray("{\"active\":false}");
+	QNetworkReply *reply =
+		m_net.post(apiRequest(QStringLiteral("/api/plugin/auto-test"), true), body);
+	connect(reply, &QNetworkReply::finished, this, [this, reply, active]() {
+		reply->deleteLater();
+		int code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		if (code == 409) {
+			emit chatActionResult(false, tr("Abre el overlay del chat en OBS primero."));
+			return;
+		}
+		if (reply->error() != QNetworkReply::NoError) {
+			emit chatActionResult(false, tr("No se pudo cambiar los mensajes automáticos."));
+			return;
+		}
+		QJsonObject obj = QJsonDocument::fromJson(reply->readAll()).object();
+		m_autoTest = obj.value(QStringLiteral("active")).toBool(active);
+		emit statusUpdated(); // que el dock refleje el nuevo estado
 	});
 }
 

@@ -44,6 +44,10 @@ public:
 	void stopStatusPolling();
 	// Emite un mensaje de prueba automático en el overlay (POST /api/plugin/test-message).
 	void sendAutoTestMessage();
+	// Activa/desactiva los mensajes de prueba automáticos (sincronizado con la web).
+	void setAutoTest(bool active);
+	// Estado actual del auto-test (según el último status recibido).
+	bool autoTestActive() const { return m_autoTest; }
 	// Limpia el chat del overlay (POST /api/plugin/clear).
 	void clearChat();
 
@@ -73,6 +77,7 @@ private:
 	QString m_overlayUrl;
 	QString m_platform;
 	bool m_live = false;
+	bool m_autoTest = false; // estado de los mensajes de prueba automáticos (sincronía)
 
 	// Estado del emparejamiento en curso.
 	QString m_deviceCode;

@@ -89,6 +89,5 @@ private:
 	QLabel *m_actionStatus = nullptr;
 	// Herramientas de prueba (mensajes automáticos + limpiar).
 	QCheckBox *m_autoTestCheck = nullptr;
-	QTimer *m_autoTestTimer = nullptr;
 	QPushButton *m_clearBtn = nullptr;
 };

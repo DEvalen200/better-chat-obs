@@ -110,9 +110,12 @@ BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
 	connect(m_api, &BetterChatApi::chatActionResult, this, [this](bool ok, const QString &msg) {
 		if (!msg.isEmpty())
 			m_actionStatus->setText(msg);
-		// Si falla el envío auto (p.ej. sin overlay), desactivar el toggle.
-		if (!ok && m_autoTestCheck && m_autoTestCheck->isChecked())
+		// Si falla activar el auto (p.ej. sin overlay), reflejar que sigue apagado.
+		if (!ok && m_autoTestCheck && m_autoTestCheck->isChecked()) {
+			m_updatingPanel = true;
 			m_autoTestCheck->setChecked(false);
+			m_updatingPanel = false;
+		}
 	});
 
 	if (m_api->isLoggedIn()) {
@@ -317,12 +320,6 @@ void BetterChatDock::buildUi()
 		toolsRow->addWidget(m_clearBtn, 0);
 		v->addLayout(toolsRow);
 
-		// Timer que dispara los mensajes de prueba automáticos (~cada 1.5s).
-		m_autoTestTimer = new QTimer(this);
-		m_autoTestTimer->setInterval(1500);
-		connect(m_autoTestTimer, &QTimer::timeout, this,
-			[this]() { m_api->sendAutoTestMessage(); });
-
 		m_logoutBtn = new QPushButton(QStringLiteral("Cerrar sesión"), page);
 		m_logoutBtn->setObjectName(QStringLiteral("ghost"));
 		connect(m_logoutBtn, &QPushButton::clicked, this, &BetterChatDock::onLogout);
@@ -369,10 +366,11 @@ void BetterChatDock::onLoggedIn()
 
 void BetterChatDock::onLoggedOut()
 {
-	if (m_autoTestTimer)
-		m_autoTestTimer->stop();
-	if (m_autoTestCheck)
+	if (m_autoTestCheck) {
+		m_updatingPanel = true;
 		m_autoTestCheck->setChecked(false);
+		m_updatingPanel = false;
+	}
 	m_stack->setCurrentIndex(0);
 	m_loginBtn->setEnabled(true);
 	m_loginStatus->clear();
@@ -394,6 +392,14 @@ void BetterChatDock::onStatusUpdated()
 	}
 	// Re-aplicar el estilo tras cambiar objectName.
 	m_liveBadge->setStyleSheet(QString::fromUtf8(kStyle));
+
+	// Reflejar el estado sincronizado del auto-test (lo pudo cambiar la web u otro
+	// cliente). m_updatingPanel evita que este ajuste dispare onAutoTestToggled.
+	if (m_autoTestCheck && m_autoTestCheck->isChecked() != m_api->autoTestActive()) {
+		m_updatingPanel = true;
+		m_autoTestCheck->setChecked(m_api->autoTestActive());
+		m_updatingPanel = false;
+	}
 
 	// Aprovechar el sondeo periodico para refrescar tamaños de la lista (el
 	// auto-resize los cambia al arrastrar en OBS).
@@ -748,14 +754,9 @@ void BetterChatDock::onLogout()
 
 void BetterChatDock::onAutoTestToggled(bool on)
 {
-	if (on) {
-		m_api->sendAutoTestMessage(); // uno inmediato para feedback rápido
-		m_autoTestTimer->start();
-		m_actionStatus->setText(QStringLiteral("Enviando mensajes de prueba…"));
-	} else {
-		m_autoTestTimer->stop();
-		m_actionStatus->clear();
-	}
+	if (m_updatingPanel)
+		return; // es un reflejo del estado del servidor, no una acción del usuario
+	m_api->setAutoTest(on);
 }
 
 void BetterChatDock::onClearChat()
