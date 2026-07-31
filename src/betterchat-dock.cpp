@@ -21,6 +21,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QLabel>
 #include <QPushButton>
 #include <QFrame>
+#include <QListWidget>
 #include <QMainWindow>
 #include <QMenuBar>
 #include <QMenu>
@@ -57,6 +58,13 @@ QLabel#code {
 	letter-spacing: 3px;
 }
 QFrame#card { background: #211815; border: 1px solid #3a2a25; border-radius: 12px; }
+QListWidget#chatList {
+	background: #211815; border: 1px solid #3a2a25; border-radius: 8px;
+	color: #f6eeea; padding: 4px; outline: 0;
+}
+QListWidget#chatList::item { padding: 7px 8px; border-radius: 6px; }
+QListWidget#chatList::item:selected { background: #ff4d8d; color: #1a0c12; }
+QPushButton#ghost:disabled { color: #6b5a53; border-color: #2b1f1b; }
 )CSS";
 
 BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
@@ -73,6 +81,7 @@ BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
 	if (m_api->isLoggedIn()) {
 		m_stack->setCurrentIndex(1);
 		m_api->startStatusPolling();
+		refreshChatList();
 	} else {
 		m_stack->setCurrentIndex(0);
 	}
@@ -146,17 +155,44 @@ void BetterChatDock::buildUi()
 		row->addWidget(m_liveBadge, 0, Qt::AlignRight);
 		v->addLayout(row);
 
-		m_addSourceBtn = new QPushButton(QStringLiteral("Añadir chat a la escena"), page);
-		m_addSourceBtn->setObjectName(QStringLiteral("primary"));
-		connect(m_addSourceBtn, &QPushButton::clicked, this, &BetterChatDock::onAddChatSource);
-		v->addWidget(m_addSourceBtn);
+		auto *listLabel = new QLabel(QStringLiteral("Tus chats en OBS"), page);
+		listLabel->setObjectName(QStringLiteral("muted"));
+		v->addWidget(listLabel);
+
+		// Lista de instancias de chat existentes (cada una su propio tamaño).
+		m_chatList = new QListWidget(page);
+		m_chatList->setObjectName(QStringLiteral("chatList"));
+		connect(m_chatList, &QListWidget::itemSelectionChanged, this, [this]() {
+			bool sel = m_chatList->currentItem() != nullptr;
+			m_addSelBtn->setEnabled(sel);
+			m_removeSelBtn->setEnabled(sel);
+		});
+		v->addWidget(m_chatList, 1);
+
+		// Acciones sobre la seleccionada: añadirla a la escena actual o quitarla.
+		auto *selRow = new QHBoxLayout();
+		m_addSelBtn = new QPushButton(QStringLiteral("Añadir a esta escena"), page);
+		m_addSelBtn->setObjectName(QStringLiteral("ghost"));
+		m_addSelBtn->setEnabled(false);
+		connect(m_addSelBtn, &QPushButton::clicked, this, &BetterChatDock::onAddSelectedToScene);
+		selRow->addWidget(m_addSelBtn, 1);
+		m_removeSelBtn = new QPushButton(QStringLiteral("Quitar"), page);
+		m_removeSelBtn->setObjectName(QStringLiteral("ghost"));
+		m_removeSelBtn->setEnabled(false);
+		connect(m_removeSelBtn, &QPushButton::clicked, this, &BetterChatDock::onRemoveSelected);
+		selRow->addWidget(m_removeSelBtn, 0);
+		v->addLayout(selRow);
+
+		// Crear una instancia NUEVA e independiente en la escena actual.
+		m_createBtn = new QPushButton(QStringLiteral("Crear chat nuevo en esta escena"), page);
+		m_createBtn->setObjectName(QStringLiteral("primary"));
+		connect(m_createBtn, &QPushButton::clicked, this, &BetterChatDock::onCreateChat);
+		v->addWidget(m_createBtn);
 
 		m_actionStatus = new QLabel(page);
 		m_actionStatus->setObjectName(QStringLiteral("muted"));
 		m_actionStatus->setWordWrap(true);
 		v->addWidget(m_actionStatus);
-
-		v->addStretch(1);
 
 		m_logoutBtn = new QPushButton(QStringLiteral("Cerrar sesión"), page);
 		m_logoutBtn->setObjectName(QStringLiteral("ghost"));
@@ -199,6 +235,7 @@ void BetterChatDock::onLoggedIn()
 	m_loginStatus->clear();
 	m_stack->setCurrentIndex(1);
 	m_api->startStatusPolling();
+	refreshChatList();
 }
 
 void BetterChatDock::onLoggedOut()
@@ -224,11 +261,72 @@ void BetterChatDock::onStatusUpdated()
 	}
 	// Re-aplicar el estilo tras cambiar objectName.
 	m_liveBadge->setStyleSheet(QString::fromUtf8(kStyle));
+
+	// Aprovechar el sondeo periodico para refrescar tamaños de la lista (el
+	// auto-resize los cambia al arrastrar en OBS).
+	refreshChatList();
 }
 
-// ---- Crear la fuente del chat en la escena activa ----
+// ---- Lista de instancias de chat ----
 
-void BetterChatDock::onAddChatSource()
+namespace {
+// Marca propia en los settings para reconocer NUESTRAS fuentes de chat, sin
+// depender de la URL (que puede variar). Las creadas por el plugin la llevan.
+constexpr const char *kChatFlag = "betterchat_instance";
+
+// Callback de enumeración: recoge nombre + tamaño de cada fuente de chat nuestra.
+struct ChatInfo {
+	QString name;
+	int width;
+	int height;
+};
+
+bool collectChatSources(void *param, obs_source_t *source)
+{
+	auto *out = static_cast<QList<ChatInfo> *>(param);
+	const char *id = obs_source_get_id(source);
+	if (!id || QString(id) != QStringLiteral("browser_source"))
+		return true;
+	obs_data_t *settings = obs_source_get_settings(source);
+	bool mine = obs_data_get_bool(settings, kChatFlag);
+	if (mine) {
+		ChatInfo info;
+		info.name = QString::fromUtf8(obs_source_get_name(source));
+		info.width = (int)obs_data_get_int(settings, "width");
+		info.height = (int)obs_data_get_int(settings, "height");
+		out->append(info);
+	}
+	obs_data_release(settings);
+	return true;
+}
+} // namespace
+
+void BetterChatDock::refreshChatList()
+{
+	if (!m_chatList)
+		return;
+	QString prevSelected;
+	if (m_chatList->currentItem())
+		prevSelected = m_chatList->currentItem()->text();
+
+	m_chatList->clear();
+	QList<ChatInfo> chats;
+	obs_enum_sources(collectChatSources, &chats);
+	for (const auto &c : chats) {
+		QString label = QStringLiteral("%1  (%2×%3)").arg(c.name).arg(c.width).arg(c.height);
+		auto *item = new QListWidgetItem(label, m_chatList);
+		item->setData(Qt::UserRole, c.name); // nombre real de la fuente
+		if (label == prevSelected)
+			m_chatList->setCurrentItem(item);
+	}
+	if (chats.isEmpty())
+		m_actionStatus->setText(QStringLiteral(
+			"Aún no tienes ningún chat. Crea uno con el botón de abajo."));
+}
+
+// ---- Crear una instancia NUEVA (fuente independiente, su propio tamaño) ----
+
+void BetterChatDock::onCreateChat()
 {
 	QString url = m_api->overlayUrl();
 	if (url.isEmpty()) {
@@ -237,10 +335,10 @@ void BetterChatDock::onAddChatSource()
 		m_api->refreshStatus();
 		return;
 	}
-	addBrowserSourceToCurrentScene(url);
+	createChatInCurrentScene(url);
 }
 
-void BetterChatDock::addBrowserSourceToCurrentScene(const QString &url)
+void BetterChatDock::createChatInCurrentScene(const QString &url)
 {
 	obs_source_t *sceneSource = obs_frontend_get_current_scene();
 	if (!sceneSource) {
@@ -254,17 +352,29 @@ void BetterChatDock::addBrowserSourceToCurrentScene(const QString &url)
 		return;
 	}
 
-	// Ajustes del browser source: URL del overlay + tamaño 1920x1080 (OBS canvas).
+	// Nombre ÚNICO: "BetterChatTV Chat", "BetterChatTV Chat 2", ... Buscamos el
+	// primer numero libre para no colisionar con fuentes existentes.
+	QString baseName = QStringLiteral("BetterChatTV Chat");
+	QString name = baseName;
+	int n = 1;
+	while (true) {
+		obs_source_t *existing = obs_get_source_by_name(name.toUtf8().constData());
+		if (!existing)
+			break;
+		obs_source_release(existing);
+		n++;
+		name = QStringLiteral("%1 %2").arg(baseName).arg(n);
+	}
+
 	obs_data_t *settings = obs_data_create();
 	obs_data_set_string(settings, "url", url.toUtf8().constData());
 	obs_data_set_int(settings, "width", 1920);
 	obs_data_set_int(settings, "height", 1080);
-	// Refrescar al activar la escena, para que reconecte al chat.
 	obs_data_set_bool(settings, "reroute_audio", false);
 	obs_data_set_bool(settings, "restart_when_active", true);
+	obs_data_set_bool(settings, kChatFlag, true); // marca de instancia nuestra
 
-	const char *sourceName = "BetterChatTV Chat";
-	obs_source_t *source = obs_source_create("browser_source", sourceName, settings, nullptr);
+	obs_source_t *source = obs_source_create("browser_source", name.toUtf8().constData(), settings, nullptr);
 	obs_data_release(settings);
 
 	if (!source) {
@@ -278,8 +388,58 @@ void BetterChatDock::addBrowserSourceToCurrentScene(const QString &url)
 	obs_source_release(source);
 	obs_source_release(sceneSource);
 
-	m_actionStatus->setText(QStringLiteral("Listo: se añadió \"%1\" a tu escena actual.").arg(sourceName));
-	obs_log(LOG_INFO, "[betterchat] browser source added to current scene");
+	m_actionStatus->setText(QStringLiteral("Creado \"%1\" en la escena actual.").arg(name));
+	obs_log(LOG_INFO, "[betterchat] nueva instancia de chat creada: %s", name.toUtf8().constData());
+	refreshChatList();
+}
+
+// ---- Añadir la instancia SELECCIONADA a la escena actual (referencia) ----
+
+void BetterChatDock::onAddSelectedToScene()
+{
+	auto *item = m_chatList->currentItem();
+	if (!item)
+		return;
+	QString name = item->data(Qt::UserRole).toString();
+
+	obs_source_t *source = obs_get_source_by_name(name.toUtf8().constData());
+	if (!source) {
+		m_actionStatus->setText(QStringLiteral("Ese chat ya no existe. Actualizo la lista."));
+		refreshChatList();
+		return;
+	}
+	obs_source_t *sceneSource = obs_frontend_get_current_scene();
+	obs_scene_t *scene = sceneSource ? obs_scene_from_source(sceneSource) : nullptr;
+	if (!scene) {
+		if (sceneSource)
+			obs_source_release(sceneSource);
+		obs_source_release(source);
+		m_actionStatus->setText(QStringLiteral("No hay ninguna escena activa en OBS."));
+		return;
+	}
+	// Referencia del MISMO source en otra escena. Comparte contenido pero como
+	// es la misma instancia, comparte tamaño (para tamaños distintos, crear otro).
+	obs_scene_add(scene, source);
+	obs_source_release(source);
+	obs_source_release(sceneSource);
+	m_actionStatus->setText(QStringLiteral("\"%1\" añadido a la escena actual.").arg(name));
+}
+
+// ---- Quitar la instancia seleccionada ----
+
+void BetterChatDock::onRemoveSelected()
+{
+	auto *item = m_chatList->currentItem();
+	if (!item)
+		return;
+	QString name = item->data(Qt::UserRole).toString();
+	obs_source_t *source = obs_get_source_by_name(name.toUtf8().constData());
+	if (source) {
+		obs_source_remove(source); // lo saca de todas las escenas
+		obs_source_release(source);
+		m_actionStatus->setText(QStringLiteral("\"%1\" eliminado.").arg(name));
+	}
+	refreshChatList();
 }
 
 void BetterChatDock::onLogout()
