@@ -24,6 +24,9 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QListWidgetItem>
 #include <QTextEdit>
 #include <QTextCursor>
+#include <QTextDocument>
+#include <QImage>
+#include <QPainterPath>
 #include <QScrollBar>
 #include <QTextOption>
 #include <QAbstractItemView>
@@ -579,52 +582,122 @@ void BetterChatDock::selectTab(int index)
 	}
 }
 
-// Añade un mensaje del multichat en vivo, con etiqueta de plataforma por color.
+// Dibuja los logos de cada plataforma con QPainter (sin depender del plugin SVG de
+// Qt, que puede faltar en OBS Windows) y los registra como recursos del documento
+// para poder referenciarlos con <img src='bcplat://twitch'> en el HTML de cada mensaje.
+void BetterChatDock::registerPlatformIcons()
+{
+	if (m_iconsReady || !m_multiChat)
+		return;
+	m_iconsReady = true;
+	const int s = 32; // se dibuja a 2x y se muestra a 16 para nitidez
+	struct P { const char *key; const char *bg; };
+	const P plats[] = {{"twitch", "#9146ff"}, {"youtube", "#ff0000"},
+			   {"kick", "#53fc18"}, {"tiktok", "#111111"}};
+	for (const P &pl : plats) {
+		QImage img(s, s, QImage::Format_ARGB32);
+		img.fill(Qt::transparent);
+		QPainter p(&img);
+		p.setRenderHint(QPainter::Antialiasing, true);
+		p.setPen(Qt::NoPen);
+		p.setBrush(QColor(pl.bg));
+		p.drawRoundedRect(0, 0, s, s, 7, 7);
+		const QString key = QString::fromLatin1(pl.key);
+		if (key == QStringLiteral("twitch")) {
+			// Bocadillo de chat blanco (marca Twitch simplificada).
+			p.setBrush(Qt::white);
+			QPainterPath body;
+			body.addRoundedRect(QRectF(7, 6, 18, 14), 2, 2);
+			p.drawPath(body);
+			QPolygonF tail;
+			tail << QPointF(13, 20) << QPointF(13, 25) << QPointF(18, 20);
+			p.drawPolygon(tail);
+		} else if (key == QStringLiteral("youtube")) {
+			// Triángulo de play blanco.
+			p.setBrush(Qt::white);
+			QPolygonF tri;
+			tri << QPointF(12, 9) << QPointF(12, 23) << QPointF(24, 16);
+			p.drawPolygon(tri);
+		} else if (key == QStringLiteral("kick")) {
+			// "K" negra.
+			p.setPen(QColor("#0d0a09"));
+			QFont f = p.font();
+			f.setBold(true);
+			f.setPixelSize(20);
+			p.setFont(f);
+			p.drawText(img.rect(), Qt::AlignCenter, QStringLiteral("K"));
+		} else if (key == QStringLiteral("tiktok")) {
+			// Nota musical (cian + rosa desplazada = estética TikTok).
+			QFont f = p.font();
+			f.setPixelSize(19);
+			f.setBold(true);
+			p.setFont(f);
+			p.setPen(QColor("#25f4ee"));
+			p.drawText(img.rect().translated(-1, -1), Qt::AlignCenter, QStringLiteral("\u266A"));
+			p.setPen(QColor("#fe2c55"));
+			p.drawText(img.rect().translated(1, 1), Qt::AlignCenter, QStringLiteral("\u266A"));
+			p.setPen(Qt::white);
+			p.drawText(img.rect(), Qt::AlignCenter, QStringLiteral("\u266A"));
+		}
+		p.end();
+		m_multiChat->document()->addResource(QTextDocument::ImageResource,
+						     QUrl(QStringLiteral("bcplat://") + key),
+						     QVariant(img));
+	}
+}
+
+// Añade un mensaje del multichat en vivo: logo de plataforma + "autor:" + texto,
+// cada uno en su propia línea (bloque).
 void BetterChatDock::onChatMessage(const QString &platform, const QString &platformLabel,
 				   const QString &author, const QString &text, const QString &color)
 {
 	if (!m_multiChat)
 		return;
+	registerPlatformIcons();
 	if (m_multiStatus)
 		m_multiStatus->setText(QStringLiteral("Chat en vivo de todas tus plataformas conectadas."));
 
-	static const QHash<QString, QString> platColors = {
-		{QStringLiteral("twitch"), QStringLiteral("#9146ff")},
-		{QStringLiteral("youtube"), QStringLiteral("#ff0000")},
-		{QStringLiteral("kick"), QStringLiteral("#53fc18")},
-		{QStringLiteral("tiktok"), QStringLiteral("#25f4ee")},
+	const QString plat = platform.toLower();
+	static const QHash<QString, bool> known = {
+		{QStringLiteral("twitch"), true}, {QStringLiteral("youtube"), true},
+		{QStringLiteral("kick"), true}, {QStringLiteral("tiktok"), true},
 	};
-	const QString bg = platColors.value(platform.toLower(), QStringLiteral("#3a2a25"));
-	const QString label = (platformLabel.isEmpty() ? platform : platformLabel).toHtmlEscaped();
 	const QString nameColor = color.isEmpty() ? QStringLiteral("#ff9ec4") : color;
 
-	// Cada mensaje es un párrafo: pill de plataforma + autor con su color + texto.
-	const QString html =
-		QStringLiteral(
-			"<div style='margin:2px 0;'>"
-			"<span style='background:%1; color:#0d0a09; font-weight:700; font-size:10px; "
-			"padding:1px 5px; border-radius:4px;'>&nbsp;%2&nbsp;</span> "
-			"<b style='color:%3'>%4</b> "
-			"<span style='color:#f6eeea'>%5</span>"
-			"</div>")
-			.arg(bg, label, nameColor, author.toHtmlEscaped(), text.toHtmlEscaped());
+	// Logo de la plataforma (si es conocida) o etiqueta de texto de reserva.
+	QString icon;
+	if (known.value(plat, false)) {
+		icon = QStringLiteral("<img src='bcplat://%1' width='16' height='16'>").arg(plat);
+	} else {
+		const QString label = (platformLabel.isEmpty() ? platform : platformLabel).toHtmlEscaped();
+		icon = QStringLiteral("<span style='background:#3a2a25; color:#f6eeea; font-size:10px; "
+				      "padding:1px 5px; border-radius:4px;'>%1</span>")
+			       .arg(label);
+	}
 
-	// Auto-scroll solo si ya estaba al fondo (para no interrumpir si el usuario sube).
+	const QString html =
+		QStringLiteral("%1 <b style='color:%2'>%3:</b> "
+			       "<span style='color:#f6eeea'>%4</span>")
+			.arg(icon, nameColor, author.toHtmlEscaped(), text.toHtmlEscaped());
+
+	// Auto-scroll solo si ya estaba al fondo (no interrumpir si el usuario sube).
 	QScrollBar *sb = m_multiChat->verticalScrollBar();
 	bool atBottom = sb->value() >= sb->maximum() - 4;
 
+	// Cada mensaje en su PROPIO bloque (línea) -> layout vertical.
 	QTextCursor cur(m_multiChat->document());
 	cur.movePosition(QTextCursor::End);
-	m_multiChat->setTextCursor(cur);
-	m_multiChat->insertHtml(html);
+	if (!m_multiChat->document()->isEmpty())
+		cur.insertBlock();
+	cur.insertHtml(html);
 
-	// Acotar el historial: si crece mucho, borrar los primeros bloques.
+	// Acotar el historial: si crece mucho, borrar el primer bloque.
 	if (++m_multiCount > 300) {
 		QTextCursor c(m_multiChat->document());
 		c.movePosition(QTextCursor::Start);
 		c.select(QTextCursor::BlockUnderCursor);
 		c.removeSelectedText();
-		c.deleteChar(); // el salto de bloque restante
+		c.deleteChar();
 		m_multiCount--;
 	}
 
