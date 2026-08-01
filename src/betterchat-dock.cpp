@@ -36,6 +36,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QPainter>
 #include <QPen>
 #include <QColor>
+#include <QPaintEvent>
 #include <QSizePolicy>
 #include <QMainWindow>
 #include <QMenuBar>
@@ -104,12 +105,7 @@ QComboBox QAbstractItemView {
 	background: #2b1f1b; color: #f6eeea; selection-background-color: #ff4d8d;
 	selection-color: #1a0c12; border: 1px solid #3a2a25;
 }
-QCheckBox { color: #f6eeea; font-size: 12px; spacing: 6px; }
-QCheckBox::indicator {
-	width: 16px; height: 16px; border-radius: 4px;
-	border: 1px solid #3a2a25; background: #2b1f1b;
-}
-QCheckBox::indicator:checked { background: #ff4d8d; border-color: #ff4d8d; }
+QCheckBox { color: #f6eeea; font-size: 12px; spacing: 8px; }
 QFrame#sep { color: #3a2a25; max-height: 1px; }
 QSlider::groove:horizontal { height: 4px; background: #3a2a25; border-radius: 2px; }
 QSlider::sub-page:horizontal { background: #ff4d8d; border-radius: 2px; }
@@ -123,9 +119,49 @@ QSpinBox {
 }
 )CSS";
 
+// Interruptor deslizante (estilo de la web): track redondeado + círculo que se
+// desliza, turquesa cuando está activo. Hereda de QCheckBox para conservar toda la
+// lógica (toggled/setChecked/isChecked) intacta; solo cambia cómo se pinta.
+class ToggleSwitch : public QCheckBox {
+public:
+	explicit ToggleSwitch(QWidget *parent = nullptr) : QCheckBox(parent)
+	{
+		setCursor(Qt::PointingHandCursor);
+	}
+	QSize sizeHint() const override { return QSize(46, 24); }
+
+protected:
+	void paintEvent(QPaintEvent *) override
+	{
+		const int w = 42, h = 22;
+		const int y = (height() - h) / 2;
+		QPainter p(this);
+		p.setRenderHint(QPainter::Antialiasing, true);
+		// Track.
+		QColor track = isChecked() ? QColor("#38d39f") : QColor("#4a3540");
+		if (!isEnabled())
+			track.setAlpha(110);
+		p.setPen(Qt::NoPen);
+		p.setBrush(track);
+		p.drawRoundedRect(0, y, w, h, h / 2.0, h / 2.0);
+		// Perilla.
+		int d = h - 6;
+		int kx = isChecked() ? (w - d - 3) : 3;
+		p.setBrush(QColor("#ffffff"));
+		p.drawEllipse(kx, y + 3, d, d);
+		// Texto a la derecha del switch.
+		if (!text().isEmpty()) {
+			p.setPen(QColor(isEnabled() ? "#f6eeea" : "#8a756c"));
+			QRect tr(w + 8, 0, width() - w - 8, height());
+			p.drawText(tr, Qt::AlignVCenter | Qt::AlignLeft, text());
+		}
+	}
+};
+
 BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
 {
 	m_api = new BetterChatApi(this);
+
 	buildUi();
 
 	connect(m_api, &BetterChatApi::pairingStarted, this, &BetterChatDock::onPairingStarted);
@@ -383,7 +419,8 @@ void BetterChatDock::buildUi()
 		v->addWidget(sep);
 
 		auto *toolsRow = new QHBoxLayout();
-		m_autoTestCheck = new QCheckBox(QStringLiteral("Mensajes de prueba automáticos"), page);
+		m_autoTestCheck = new ToggleSwitch(page);
+		m_autoTestCheck->setText(QStringLiteral("Mensajes de prueba automáticos"));
 		connect(m_autoTestCheck, &QCheckBox::toggled, this, &BetterChatDock::onAutoTestToggled);
 		toolsRow->addWidget(m_autoTestCheck, 1);
 		m_clearBtn = new QPushButton(QStringLiteral("Limpiar chat"), page);
