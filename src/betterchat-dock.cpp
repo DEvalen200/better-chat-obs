@@ -306,6 +306,7 @@ void BetterChatDock::buildUi()
 
 	auto *title = new QLabel(QStringLiteral("BetterChatTV"), this);
 	title->setObjectName(QStringLiteral("title"));
+	m_brandTitle = title;
 	outer->addWidget(title);
 
 	// Nav bar de pestañas (solo visible cuando hay sesión). Cada botón cambia
@@ -1117,6 +1118,14 @@ void BetterChatDock::onStatusUpdated()
 
 	// Ayuda de YouTube según el plan (plus = auto / standard = manual).
 	updateYouTubeHelp();
+
+	// Logo: "BetterChatTV+" (con + rosa) si el dueño tiene el plan plus.
+	if (m_brandTitle) {
+		m_brandTitle->setTextFormat(Qt::RichText);
+		m_brandTitle->setText(m_api->isPlus()
+			? QStringLiteral("BetterChatTV<span style='color:#ff4d8d;'>+</span>")
+			: QStringLiteral("BetterChatTV"));
+	}
 
 	// Reflejar el estado sincronizado del auto-test (lo pudo cambiar la web u otro
 	// cliente). m_updatingPanel evita que este ajuste dispare onAutoTestToggled.

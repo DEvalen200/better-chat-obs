@@ -90,6 +90,7 @@ private:
 	QLabel *m_loginStatus = nullptr;
 
 	// Vista logueado.
+	QLabel *m_brandTitle = nullptr; // logo "BetterChatTV" (pasa a "+" si es plus)
 	QLabel *m_userLabel = nullptr;
 	QLabel *m_liveBadge = nullptr;
 	QListWidget *m_chatList = nullptr;
