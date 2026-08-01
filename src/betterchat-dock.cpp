@@ -279,7 +279,7 @@ void BetterChatDock::buildUi()
 	{
 		auto *page = new QWidget(m_stack);
 		auto *v = new QVBoxLayout(page);
-		v->setContentsMargins(0, 0, 0, 0);
+		v->setContentsMargins(0, 0, 0, 16); // margen inferior (que "Cerrar sesión" respire)
 		v->setSpacing(10);
 
 		auto *row = new QHBoxLayout();
@@ -433,7 +433,6 @@ void BetterChatDock::buildUi()
 		m_logoutBtn->setObjectName(QStringLiteral("danger"));
 		connect(m_logoutBtn, &QPushButton::clicked, this, &BetterChatDock::onLogout);
 		v->addWidget(m_logoutBtn);
-		v->addSpacing(14); // margen inferior para que "Cerrar sesión" no quede pegado al borde
 
 		m_stack->addWidget(page);
 	}
