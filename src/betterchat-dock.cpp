@@ -138,7 +138,7 @@ protected:
 		QPainter p(this);
 		p.setRenderHint(QPainter::Antialiasing, true);
 		// Track.
-		QColor track = isChecked() ? QColor("#38d39f") : QColor("#4a3540");
+		QColor track = isChecked() ? QColor("#38d39f") : QColor("#6b5850");
 		if (!isEnabled())
 			track.setAlpha(110);
 		p.setPen(Qt::NoPen);
@@ -433,6 +433,7 @@ void BetterChatDock::buildUi()
 		m_logoutBtn->setObjectName(QStringLiteral("danger"));
 		connect(m_logoutBtn, &QPushButton::clicked, this, &BetterChatDock::onLogout);
 		v->addWidget(m_logoutBtn);
+		v->addSpacing(14); // margen inferior para que "Cerrar sesión" no quede pegado al borde
 
 		m_stack->addWidget(page);
 	}
