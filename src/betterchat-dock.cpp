@@ -629,15 +629,15 @@ void BetterChatDock::onPlatformStatus(const QString &platform, const QString &st
 	// Color del punto + texto según el estado.
 	QString dot, label;
 	if (state == QStringLiteral("connected")) {
-		dot = QStringLiteral("#38d39f"); label = QStringLiteral("chat en vivo");
+		dot = QStringLiteral("#38d39f"); label = QStringLiteral("en vivo");
 	} else if (state == QStringLiteral("connecting")) {
-		dot = QStringLiteral("#ffb020"); label = QStringLiteral("conectando");
+		dot = QStringLiteral("#ffb020"); label = QStringLiteral("...");
 	} else if (state == QStringLiteral("error")) {
 		dot = QStringLiteral("#ff5b6a"); label = QStringLiteral("error");
 	} else if (state == QStringLiteral("disconnected")) {
 		dot = QStringLiteral("#ff5b6a"); label = QStringLiteral("sin directo");
 	} else { // off (no configurada)
-		dot = QStringLiteral("#6b5a53"); label = QStringLiteral("no conectada");
+		dot = QStringLiteral("#6b5a53"); label = QStringLiteral("off");
 	}
 
 	const QString plat = platform.toLower();
