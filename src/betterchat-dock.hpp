@@ -119,7 +119,9 @@ private:
 	QVBoxLayout *m_ytList = nullptr;    // contenedor de los directos
 	QLabel *m_ytPickerMsg = nullptr;    // estado/mensajes del selector
 	QLabel *m_ytSearching = nullptr;    // indicador "buscando tu directo" (auto-conexión)
+	QLabel *m_ytHelp = nullptr;         // ayuda contextual (plus: auto / standard: manual)
 	QPushButton *m_ytPickBtn = nullptr; // botón que abre/refresca el selector
+	void updateYouTubeHelp();           // refresca el texto de ayuda según isPlus/vinculado
 	void toggleYouTubePicker();
 	void onYouTubeLiveList(const QByteArray &json);
 	void onYouTubeLiveError(const QString &message);

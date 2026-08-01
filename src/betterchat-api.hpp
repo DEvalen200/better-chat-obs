@@ -48,6 +48,10 @@ public:
 	void setAutoTest(bool active);
 	// Estado actual del auto-test (según el último status recibido).
 	bool autoTestActive() const { return m_autoTest; }
+	// ¿El dueño tiene BetterChatTV+? (auto-conexión de YouTube).
+	bool isPlus() const { return m_isPlus; }
+	// ¿Tiene la cuenta de YouTube vinculada?
+	bool youtubeLinked() const { return m_youtubeLinked; }
 	// Limpia el chat del overlay (POST /api/plugin/clear).
 	void clearChat();
 	// Abre/cierra el stream SSE del multichat en vivo (/api/plugin/chat-stream).
@@ -107,6 +111,8 @@ private:
 	QString m_platform;
 	bool m_live = false;
 	bool m_autoTest = false; // estado de los mensajes de prueba automáticos (sincronía)
+	bool m_isPlus = false;        // BetterChatTV+ (auto-conexión de YouTube)
+	bool m_youtubeLinked = false; // cuenta de YouTube vinculada
 
 	// Stream SSE del multichat en vivo.
 	QNetworkReply *m_sseReply = nullptr;

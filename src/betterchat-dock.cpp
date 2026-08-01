@@ -155,6 +155,7 @@ QPushButton#ytPickBtn {
 }
 QPushButton#ytPickBtn:hover { background: #ff3333; }
 QLabel#ytSearching { color: #ffb020; font-size: 11px; font-style: italic; }
+QLabel#ytHelp { color: #b9a49c; font-size: 11px; }
 QWidget#ytPicker {
 	background: #211815; border: 1px solid #3a2a25; border-radius: 8px;
 }
@@ -671,6 +672,13 @@ void BetterChatDock::buildPlatformBar(QVBoxLayout *parent)
 	ytH->addWidget(m_ytPickBtn, 0);
 	parent->addWidget(ytRow);
 
+	// Línea de ayuda contextual: explica si el directo de YouTube se conecta solo
+	// (plus) o hay que elegirlo a mano (standard). Se rellena en onStatusUpdated.
+	m_ytHelp = new QLabel(QString());
+	m_ytHelp->setObjectName(QStringLiteral("ytHelp"));
+	m_ytHelp->setWordWrap(true);
+	parent->addWidget(m_ytHelp);
+
 	// Panel plegable del selector de directos de YouTube (oculto por defecto).
 	m_ytPicker = new QWidget();
 	m_ytPicker->setObjectName(QStringLiteral("ytPicker"));
@@ -792,6 +800,32 @@ void BetterChatDock::onYouTubeLiveError(const QString &message)
 {
 	if (m_ytPickerMsg)
 		m_ytPickerMsg->setText(message);
+}
+
+// Ajusta la ayuda y el botón de YouTube según el plan: los plus se conectan solos,
+// los standard eligen el directo a mano.
+void BetterChatDock::updateYouTubeHelp()
+{
+	if (!m_ytHelp || !m_ytPickBtn)
+		return;
+	if (m_api->isPlus()) {
+		if (m_api->youtubeLinked()) {
+			m_ytHelp->setText(QStringLiteral(
+				"Con BetterChatTV+, tu directo de YouTube se conecta solo al "
+				"iniciar la transmisión. No tienes que hacer nada."));
+			m_ytPickBtn->setText(QStringLiteral("Elegir a mano"));
+		} else {
+			m_ytHelp->setText(QStringLiteral(
+				"Vincula tu cuenta de YouTube en Conexiones para que tu directo "
+				"se conecte solo al transmitir (incluido en BetterChatTV+)."));
+			m_ytPickBtn->setText(QStringLiteral("Elegir directo YT"));
+		}
+	} else {
+		m_ytHelp->setText(QStringLiteral(
+			"Elige tu directo de YouTube al empezar a emitir. "
+			"Con BetterChatTV+ se conecta automáticamente."));
+		m_ytPickBtn->setText(QStringLiteral("Elegir directo YT"));
+	}
 }
 
 // Refresca el chip de una plataforma según su estado de conexión en el stream.
@@ -1080,6 +1114,9 @@ void BetterChatDock::onStatusUpdated()
 	}
 	// Re-aplicar el estilo tras cambiar objectName.
 	m_liveBadge->setStyleSheet(QString::fromUtf8(kStyle));
+
+	// Ayuda de YouTube según el plan (plus = auto / standard = manual).
+	updateYouTubeHelp();
 
 	// Reflejar el estado sincronizado del auto-test (lo pudo cambiar la web u otro
 	// cliente). m_updatingPanel evita que este ajuste dispare onAutoTestToggled.

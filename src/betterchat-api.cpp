@@ -189,6 +189,8 @@ void BetterChatApi::refreshStatus()
 		m_live = obj.value(QStringLiteral("live")).toBool();
 		m_platform = obj.value(QStringLiteral("platform")).toString();
 		m_autoTest = obj.value(QStringLiteral("autoTest")).toBool();
+		m_isPlus = obj.value(QStringLiteral("isPlus")).toBool();
+		m_youtubeLinked = obj.value(QStringLiteral("youtubeLinked")).toBool();
 		emit statusUpdated();
 	});
 }
