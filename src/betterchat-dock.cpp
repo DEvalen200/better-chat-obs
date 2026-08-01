@@ -238,14 +238,8 @@ void BetterChatDock::buildUi()
 		m_userLabel = new QLabel(page);
 		m_userLabel->setObjectName(QStringLiteral("title"));
 		row->addWidget(m_userLabel, 1);
-		m_liveBadge = new QLabel(page);
-		m_liveBadge->setObjectName(QStringLiteral("liveOff"));
-		m_liveBadge->setText(QStringLiteral("Sin directo"));
-		row->addWidget(m_liveBadge, 0, Qt::AlignRight);
-		v->addLayout(row);
-
-		// Botón para abrir el dashboard de BetterChatTV en el navegador.
-		auto *dashBtn = new QPushButton(QStringLiteral("Abrir mi panel de BetterChatTV"), page);
+		// Botón "Dashboard ↗" que abre el panel de BetterChatTV en el navegador.
+		auto *dashBtn = new QPushButton(QStringLiteral("Dashboard ↗"), page);
 		dashBtn->setObjectName(QStringLiteral("ghost"));
 		dashBtn->setCursor(Qt::PointingHandCursor);
 		connect(dashBtn, &QPushButton::clicked, this, [this]() {
@@ -254,7 +248,12 @@ void BetterChatDock::buildUi()
 				base = QStringLiteral("https://betterchat.tv");
 			QDesktopServices::openUrl(QUrl(base + QStringLiteral("/dashboard")));
 		});
-		v->addWidget(dashBtn);
+		row->addWidget(dashBtn, 0);
+		m_liveBadge = new QLabel(page);
+		m_liveBadge->setObjectName(QStringLiteral("liveOff"));
+		m_liveBadge->setText(QStringLiteral("No estás en directo"));
+		row->addWidget(m_liveBadge, 0, Qt::AlignRight);
+		v->addLayout(row);
 
 		auto *listLabel = new QLabel(QStringLiteral("Tus chats en OBS"), page);
 		listLabel->setObjectName(QStringLiteral("muted"));
@@ -445,11 +444,11 @@ void BetterChatDock::onStatusUpdated()
 	if (m_api->isLive()) {
 		QString plat = m_api->platform();
 		m_liveBadge->setObjectName(QStringLiteral("liveOn"));
-		m_liveBadge->setText(plat.isEmpty() ? QStringLiteral("EN DIRECTO")
-						    : QStringLiteral("EN DIRECTO · %1").arg(plat));
+		m_liveBadge->setText(plat.isEmpty() ? QStringLiteral("En directo ahora")
+						    : QStringLiteral("En directo · %1").arg(plat));
 	} else {
 		m_liveBadge->setObjectName(QStringLiteral("liveOff"));
-		m_liveBadge->setText(QStringLiteral("Sin directo"));
+		m_liveBadge->setText(QStringLiteral("No estás en directo"));
 	}
 	// Re-aplicar el estilo tras cambiar objectName.
 	m_liveBadge->setStyleSheet(QString::fromUtf8(kStyle));
