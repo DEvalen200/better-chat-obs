@@ -22,6 +22,10 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QFrame>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QTextEdit>
+#include <QTextCursor>
+#include <QScrollBar>
+#include <QTextOption>
 #include <QAbstractItemView>
 #include <QHash>
 #include <QScrollArea>
@@ -128,6 +132,10 @@ QListWidget#multiList {
 	color: #f6eeea; padding: 4px; outline: 0;
 }
 QListWidget#multiList::item { border-bottom: 1px solid #2b1f1b; }
+QTextEdit#multiChat {
+	background: #211815; border: 1px solid #3a2a25; border-radius: 8px;
+	color: #f6eeea; padding: 4px;
+}
 QSlider::groove:horizontal { height: 4px; background: #3a2a25; border-radius: 2px; }
 QSlider::sub-page:horizontal { background: #ff4d8d; border-radius: 2px; }
 QSlider::handle:horizontal {
@@ -525,12 +533,12 @@ void BetterChatDock::buildUi()
 			m_multiStatus->setWordWrap(true);
 			tv->addWidget(m_multiStatus);
 
-			m_multiList = new QListWidget(tab);
-			m_multiList->setObjectName(QStringLiteral("multiList"));
-			m_multiList->setWordWrap(true);
-			m_multiList->setSelectionMode(QAbstractItemView::NoSelection);
-			m_multiList->setFocusPolicy(Qt::NoFocus);
-			tv->addWidget(m_multiList, 1);
+			m_multiChat = new QTextEdit(tab);
+			m_multiChat->setObjectName(QStringLiteral("multiChat"));
+			m_multiChat->setReadOnly(true);
+			m_multiChat->setFocusPolicy(Qt::NoFocus);
+			m_multiChat->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+			tv->addWidget(m_multiChat, 1);
 
 			m_tabStack->addWidget(tab); // índice 1
 		}
@@ -571,69 +579,57 @@ void BetterChatDock::selectTab(int index)
 	}
 }
 
-// Añade un mensaje del multichat en vivo a la lista, con prefijo de plataforma.
+// Añade un mensaje del multichat en vivo, con etiqueta de plataforma por color.
 void BetterChatDock::onChatMessage(const QString &platform, const QString &platformLabel,
 				   const QString &author, const QString &text, const QString &color)
 {
-	if (!m_multiList)
+	if (!m_multiChat)
 		return;
 	if (m_multiStatus)
 		m_multiStatus->setText(QStringLiteral("Chat en vivo de todas tus plataformas conectadas."));
 
-	auto *item = new QListWidgetItem(m_multiList);
-	auto *w = new QWidget(m_multiList);
-	auto *h = new QHBoxLayout(w);
-	h->setContentsMargins(2, 3, 2, 3);
-	h->setSpacing(7);
-
-	// Etiqueta de plataforma con color propio.
 	static const QHash<QString, QString> platColors = {
 		{QStringLiteral("twitch"), QStringLiteral("#9146ff")},
 		{QStringLiteral("youtube"), QStringLiteral("#ff0000")},
 		{QStringLiteral("kick"), QStringLiteral("#53fc18")},
 		{QStringLiteral("tiktok"), QStringLiteral("#25f4ee")},
 	};
-	auto *tag = new QLabel(platformLabel.isEmpty() ? platform : platformLabel, w);
-	QString bg = platColors.value(platform.toLower(), QStringLiteral("#3a2a25"));
-	tag->setStyleSheet(QStringLiteral("background:%1; color:#0d0a09; border-radius:4px; "
-					  "padding:1px 6px; font-weight:700; font-size:10px;")
-				   .arg(bg));
-	tag->setAlignment(Qt::AlignTop);
-	h->addWidget(tag, 0, Qt::AlignTop);
+	const QString bg = platColors.value(platform.toLower(), QStringLiteral("#3a2a25"));
+	const QString label = (platformLabel.isEmpty() ? platform : platformLabel).toHtmlEscaped();
+	const QString nameColor = color.isEmpty() ? QStringLiteral("#ff9ec4") : color;
 
-	// Autor + texto.
-	QString nameColor = color.isEmpty() ? QStringLiteral("#ff9ec4") : color;
-	auto *body = new QLabel(w);
-	body->setTextFormat(Qt::RichText);
-	body->setWordWrap(true);
-	body->setText(QStringLiteral("<b style='color:%1'>%2</b> <span style='color:#f6eeea'>%3</span>")
-			      .arg(nameColor, author.toHtmlEscaped(), text.toHtmlEscaped()));
-	body->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
-	h->addWidget(body, 1);
+	// Cada mensaje es un párrafo: pill de plataforma + autor con su color + texto.
+	const QString html =
+		QStringLiteral(
+			"<div style='margin:2px 0;'>"
+			"<span style='background:%1; color:#0d0a09; font-weight:700; font-size:10px; "
+			"padding:1px 5px; border-radius:4px;'>&nbsp;%2&nbsp;</span> "
+			"<b style='color:%3'>%4</b> "
+			"<span style='color:#f6eeea'>%5</span>"
+			"</div>")
+			.arg(bg, label, nameColor, author.toHtmlEscaped(), text.toHtmlEscaped());
 
-	m_multiList->setItemWidget(item, w);
-	// Calcular la altura real: el QLabel con word-wrap sabe su alto para un ancho
-	// dado (heightForWidth). Si el sizeHint directo se usa antes de conocer el ancho
-	// del viewport, el texto se corta. Reservamos el ancho de la etiqueta y el
-	// espaciado, y medimos el cuerpo con el ancho que le queda.
-	auto relayout = [this, item, w, body, tag]() {
-		int avail = m_multiList->viewport()->width();
-		int bodyW = avail - tag->sizeHint().width() - 7 - 4 - 6;
-		if (bodyW < 40)
-			bodyW = 40;
-		int bodyH = body->heightForWidth(bodyW);
-		if (bodyH <= 0)
-			bodyH = body->sizeHint().height();
-		int rowH = qMax(bodyH, tag->sizeHint().height()) + 6; // +márgenes verticales
-		item->setSizeHint(QSize(avail - 4, rowH));
-		w->resize(avail - 4, rowH);
-	};
-	relayout();
+	// Auto-scroll solo si ya estaba al fondo (para no interrumpir si el usuario sube).
+	QScrollBar *sb = m_multiChat->verticalScrollBar();
+	bool atBottom = sb->value() >= sb->maximum() - 4;
 
-	// Mantener acotado el historial y auto-scroll al final.
-	while (m_multiList->count() > 200)
-		delete m_multiList->takeItem(0);
-	m_multiList->scrollToBottom();
+	QTextCursor cur(m_multiChat->document());
+	cur.movePosition(QTextCursor::End);
+	m_multiChat->setTextCursor(cur);
+	m_multiChat->insertHtml(html);
+
+	// Acotar el historial: si crece mucho, borrar los primeros bloques.
+	if (++m_multiCount > 300) {
+		QTextCursor c(m_multiChat->document());
+		c.movePosition(QTextCursor::Start);
+		c.select(QTextCursor::BlockUnderCursor);
+		c.removeSelectedText();
+		c.deleteChar(); // el salto de bloque restante
+		m_multiCount--;
+	}
+
+	if (atBottom)
+		sb->setValue(sb->maximum());
 }
 
 // ---- Login ----

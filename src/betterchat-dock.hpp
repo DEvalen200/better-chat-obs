@@ -21,6 +21,7 @@ class QStackedWidget;
 class QLabel;
 class QPushButton;
 class QListWidget;
+class QTextEdit;
 class QComboBox;
 class QWidget;
 class QCheckBox;
@@ -99,8 +100,9 @@ private:
 	QPushButton *m_logoutBtn = nullptr;
 
 	// Pestaña Multichat: chat en vivo combinado (SSE).
-	QListWidget *m_multiList = nullptr;
+	QTextEdit *m_multiChat = nullptr;
 	QLabel *m_multiStatus = nullptr;
+	int m_multiCount = 0; // nº de mensajes añadidos (para acotar el historial)
 	void onChatMessage(const QString &platform, const QString &platformLabel,
 			   const QString &author, const QString &text, const QString &color);
 	QLabel *m_actionStatus = nullptr;
