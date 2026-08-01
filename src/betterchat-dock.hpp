@@ -107,6 +107,7 @@ private:
 	QWidget *m_platBar = nullptr;                 // fila de chips de estado por plataforma
 	QHash<QString, QLabel *> m_platChips;         // platform -> chip
 	bool m_iconsReady = false; // iconos de plataforma registrados en el documento
+	QHash<QString, QString> m_platIconB64; // platform -> PNG base64 (para data URI en QLabel)
 	void registerPlatformIcons();
 	void buildPlatformBar(QVBoxLayout *parent);   // crea la fila de chips
 	void onPlatformStatus(const QString &platform, const QString &state, const QString &detail);

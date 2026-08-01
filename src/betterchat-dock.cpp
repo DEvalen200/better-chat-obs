@@ -532,6 +532,12 @@ void BetterChatDock::buildUi()
 			tv->setContentsMargins(0, 0, 0, 0);
 			tv->setSpacing(8);
 
+			m_multiChat = new QTextEdit(tab);
+			m_multiChat->setObjectName(QStringLiteral("multiChat"));
+			m_multiChat->setReadOnly(true);
+			m_multiChat->setFocusPolicy(Qt::NoFocus);
+			registerPlatformIcons(); // registra los iconos en el documento del multichat
+
 			// Fila de chips: estado de conexión de cada plataforma.
 			buildPlatformBar(tv);
 
@@ -541,10 +547,6 @@ void BetterChatDock::buildUi()
 			m_multiStatus->setWordWrap(true);
 			tv->addWidget(m_multiStatus);
 
-			m_multiChat = new QTextEdit(tab);
-			m_multiChat->setObjectName(QStringLiteral("multiChat"));
-			m_multiChat->setReadOnly(true);
-			m_multiChat->setFocusPolicy(Qt::NoFocus);
 			m_multiChat->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
 			// Descarte NATIVO de bloques antiguos: al superar el tope, Qt borra el
 			// bloque más viejo automáticamente (mucho más barato que hacerlo con
@@ -580,14 +582,14 @@ void BetterChatDock::selectTab(int index)
 	m_tabStack->setCurrentIndex(index);
 	for (int i = 0; i < m_tabButtons.size(); i++)
 		m_tabButtons[i]->setChecked(i == index);
-	// El stream del multichat solo corre mientras la pestaña está visible (ahorra
-	// conexión y carga del servidor cuando no se está mirando).
-	if (index == 1) {
+	// El stream del multichat se mantiene VIVO mientras haya sesión (no se corta al
+	// salir de la pestaña): así no se reconectan los conectores cada vez que entras
+	// (evita el parpadeo "conectando -> chat en vivo"). Se arranca la 1a vez que se
+	// entra a Multichat y sigue en marcha hasta cerrar sesión.
+	if (index == 1 && !m_api->chatStreamActive()) {
 		if (m_multiStatus)
 			m_multiStatus->setText(QStringLiteral("Conectando al chat en vivo..."));
 		m_api->startChatStream();
-	} else {
-		m_api->stopChatStream();
 	}
 }
 
@@ -639,12 +641,9 @@ void BetterChatDock::onPlatformStatus(const QString &platform, const QString &st
 	}
 
 	const QString plat = platform.toLower();
-	static const QHash<QString, bool> known = {
-		{QStringLiteral("twitch"), true}, {QStringLiteral("youtube"), true},
-		{QStringLiteral("kick"), true}, {QStringLiteral("tiktok"), true},
-	};
-	QString icon = known.value(plat, false)
-		? QStringLiteral("<img src='bcplat://%1' width='13' height='13'>").arg(plat)
+	QString icon = m_platIconB64.contains(plat)
+		? QStringLiteral("<img src='data:image/png;base64,%1' width='13' height='13'>")
+			  .arg(m_platIconB64.value(plat))
 		: plat.toHtmlEscaped();
 
 	// Chip: [logo] •estado, con punto de color según el estado.
@@ -664,7 +663,7 @@ void BetterChatDock::onPlatformStatus(const QString &platform, const QString &st
 // (QImage), sin depender del modulo SVG de Qt que puede faltar en OBS Windows.
 void BetterChatDock::registerPlatformIcons()
 {
-	if (m_iconsReady || !m_multiChat)
+	if (m_iconsReady)
 		return;
 	m_iconsReady = true;
 	struct P { const char *key; const char *png; };
@@ -675,12 +674,15 @@ void BetterChatDock::registerPlatformIcons()
 		{"tiktok", "iVBORw0KGgoAAAANSUhEUgAAACQAAAAkCAYAAADhAJiYAAAACXBIWXMAAA7EAAAOxAGVKw4bAAADJUlEQVRYhc2YT0gjdxTHP29UkrgXfwGPC1YR62FbRxRETwXZUEVBxGNR2AXrwUNvEg3m5LWQIrtGva9XD5Vd/HMQxZNYWmwhBJGCenEGoQuTgP56iLrOaDYx//R7mt+b9958+L3fG2ae4JFS6pWIvNVavwZeAi+8PkXqM/CviHzSWi/Ztv3n3Zty59qnlPoV+NljL6c08N627V+A1F0gn1JqDfihQiBebdm2/SOQqgJQSv0GjDwRDMA3gUAg6DjO76KUegX8QeXKlE0a+N4QkbfPAAZAROSNcd1Nz0Ja65BBprWLVjgc5vz8HMuysCyL1tbWQtK8NCjRe8YwDES+VL6jo6OQNC+MUsAALhiAsbExqqurH52nZEBemabJ5OTko+PKBgQQiURYXFykvr4+75iylexGw8PDHB4esrGxwdDQUOWAvqaqqipM06SzszOnb9mAtra2uLy8fHTco4EaGxsJh8OsrKywurpKf38/cL9kc3NzdHd3E4vFODo6yjt/3n3p9/uZnZ1lfHzcZV9bW8sak0gkiEajRKNRfD4ftbW1pQESEebn5x88lFrrB2O89lQqRSqVyvmsvEo2MTGRtUOurq4yiYzSHMecO1RXV8fMzIzLlkwmWVpa4vj4mGQyCWQ66a6y7VzRQKFQCL/f74Lp7e3l4uLC5ecFKlQ597mlpcW1jsfj92AqCuQ9G6enpw/6eYEcxykPUCKRcK3b29vv+YgIpmnertPp9O3ZKjnQ9vb2bSdBpuN6enpcMJFIhLa2tlvb7u4u6XS6ICBRSuVsh4WFBUZGvvyUaK3Z3Nzk7OyMrq4umpqaXP4DAwPs7OyUDygYDLK+vk5DQ0POhPF4nKmpqYJgIM8Xo2VZDA4Osr+/n9VHa00sFmN6erpgGMjs0H/k+V1dU1NDX18fo6OjNDc3EwwGOTk5YW9vj+XlZQ4ODoqCAT6LUupv4NtiM5VI/xgi8umpKW4kIh+f26/0d8b1fOb9E8MAvLNt+69nMY4RkU3Lsvq4GccAl47jfAgEAkGgg8oOrN7Ztv0TkOahB1+P9N5orUOUd6T3UWu97B3p/Q+1Uwt/WjrRTwAAAABJRU5ErkJggg=="},
 	};
 	for (const P &pl : plats) {
-		QImage img;
-		img.loadFromData(QByteArray::fromBase64(QByteArray(pl.png)), "PNG");
-		m_multiChat->document()->addResource(QTextDocument::ImageResource,
-						     QUrl(QStringLiteral("bcplat://") +
-							  QString::fromLatin1(pl.key)),
-						     QVariant(img));
+		const QString key = QString::fromLatin1(pl.key);
+		m_platIconB64.insert(key, QString::fromLatin1(pl.png)); // para data URI en QLabel
+		if (m_multiChat) {
+			QImage img;
+			img.loadFromData(QByteArray::fromBase64(QByteArray(pl.png)), "PNG");
+			m_multiChat->document()->addResource(QTextDocument::ImageResource,
+							     QUrl(QStringLiteral("bcplat://") + key),
+							     QVariant(img));
+		}
 	}
 }
 
