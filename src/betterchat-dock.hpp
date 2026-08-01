@@ -115,6 +115,7 @@ private:
 	QWidget *m_ytPicker = nullptr;      // panel plegable con la lista
 	QVBoxLayout *m_ytList = nullptr;    // contenedor de los directos
 	QLabel *m_ytPickerMsg = nullptr;    // estado/mensajes del selector
+	QLabel *m_ytSearching = nullptr;    // indicador "buscando tu directo" (auto-conexión)
 	QPushButton *m_ytPickBtn = nullptr; // botón que abre/refresca el selector
 	void toggleYouTubePicker();
 	void onYouTubeLiveList(const QByteArray &json);

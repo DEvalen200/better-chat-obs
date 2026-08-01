@@ -154,6 +154,7 @@ QPushButton#ytPickBtn {
 	padding: 3px 9px; font-size: 11px; font-weight: 700;
 }
 QPushButton#ytPickBtn:hover { background: #ff3333; }
+QLabel#ytSearching { color: #ffb020; font-size: 11px; font-style: italic; }
 QWidget#ytPicker {
 	background: #211815; border: 1px solid #3a2a25; border-radius: 8px;
 }
@@ -656,6 +657,12 @@ void BetterChatDock::buildPlatformBar(QVBoxLayout *parent)
 	ytH->setContentsMargins(0, 0, 0, 0);
 	ytH->setSpacing(6);
 	ytH->addStretch(1);
+	// Indicador "buscando automáticamente" (visible solo mientras la auto-conexión
+	// de YouTube está buscando el directo; lo enciende el estado 'searching' por SSE).
+	m_ytSearching = new QLabel(QStringLiteral("Buscando tu directo..."), ytRow);
+	m_ytSearching->setObjectName(QStringLiteral("ytSearching"));
+	m_ytSearching->setVisible(false);
+	ytH->addWidget(m_ytSearching, 0);
 	m_ytPickBtn = new QPushButton(QStringLiteral("Elegir directo YT"), ytRow);
 	m_ytPickBtn->setObjectName(QStringLiteral("ytPickBtn"));
 	m_ytPickBtn->setCursor(Qt::PointingHandCursor);
@@ -803,6 +810,8 @@ void BetterChatDock::onPlatformStatus(const QString &platform, const QString &st
 		dot = QStringLiteral("#38d39f"); label = QStringLiteral("en vivo");
 	} else if (state == QStringLiteral("connecting")) {
 		dot = QStringLiteral("#ffb020"); label = QStringLiteral("...");
+	} else if (state == QStringLiteral("searching")) {
+		dot = QStringLiteral("#ffb020"); label = QStringLiteral("buscando");
 	} else if (state == QStringLiteral("error")) {
 		dot = QStringLiteral("#ff5b6a"); label = QStringLiteral("error");
 	} else if (state == QStringLiteral("disconnected")) {
@@ -812,6 +821,10 @@ void BetterChatDock::onPlatformStatus(const QString &platform, const QString &st
 	}
 
 	const QString plat = platform.toLower();
+	// Indicador "Buscando tu directo..." junto al botón de elegir directo de YouTube:
+	// visible solo mientras la auto-conexión de YouTube está buscando.
+	if (plat == QStringLiteral("youtube") && m_ytSearching)
+		m_ytSearching->setVisible(state == QStringLiteral("searching"));
 	QString icon = m_platIconB64.contains(plat)
 		? QStringLiteral("<img src='data:image/png;base64,%1' width='13' height='13'>")
 			  .arg(m_platIconB64.value(plat))
