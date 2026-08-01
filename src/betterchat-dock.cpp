@@ -582,69 +582,31 @@ void BetterChatDock::selectTab(int index)
 	}
 }
 
-// Dibuja los logos de cada plataforma con QPainter (sin depender del plugin SVG de
-// Qt, que puede faltar en OBS Windows) y los registra como recursos del documento
-// para poder referenciarlos con <img src='bcplat://twitch'> en el HTML de cada mensaje.
+// Iconos oficiales de cada plataforma, pre-rasterizados a PNG (con el renderer SVG
+// de Qt en tiempo de build) y embebidos en base64. En runtime solo se carga el PNG
+// (QImage), sin depender del modulo SVG de Qt que puede faltar en OBS Windows.
 void BetterChatDock::registerPlatformIcons()
 {
 	if (m_iconsReady || !m_multiChat)
 		return;
 	m_iconsReady = true;
-	const int s = 32; // se dibuja a 2x y se muestra a 16 para nitidez
-	struct P { const char *key; const char *bg; };
-	const P plats[] = {{"twitch", "#9146ff"}, {"youtube", "#ff0000"},
-			   {"kick", "#53fc18"}, {"tiktok", "#111111"}};
+	struct P { const char *key; const char *png; };
+	static const P plats[] = {
+		{"twitch", "iVBORw0KGgoAAAANSUhEUgAAACQAAAAkCAYAAADhAJiYAAAACXBIWXMAAA7EAAAOxAGVKw4bAAACjklEQVRYhe2Yz2sTQRiGn5mNKRpaxUIVMYq/wEtIRQ+KWimWlggWRATvLVKQViroQfTuQSy2tPYQ/QdED/EQG6pFD+JBxKSC4kVq6kXRiqUtSbs7HjZ100WbzWaT7cH3NN/stzMP8+43uzsCm4baVESXdAtoB8JAyJ5ToeaArIKUZhDvHReTxRfFcmMwpuoMnQEBPcX9VZZSMCo1+vuSIvcHaDCm6pROEmitEYhdE0Ij1pcUOQlg6Az4CAPQqnRuA4ihNhUxJGlqZ9O/pKRBVOqS7jUAAyAMjS5ZqKa1IUVHALO0HalhC5y9BfVN7uZ7PgzpxKop4QAO95limE+vYParc5BgCPafdJQaCpQLA5B5DFOvnQNt2uYYCFkqob6pMpvKVUmg3YdLw4QPwKkbVl5wgxnva6kCkBM1bIW9x0wQAG2dGW/e6ROQl/oPVEqOyr6U3qfgw1MwFs144RcMnwal+wRk6EDx5Ar0vBXuOuJ8rKpbFu2E4xfgx2f4+MJnoGgnnLhowjy8Ags/S9/jyrKD56xXwew3eHnfbB86D42FvSdQB3uOmjCPrjqDcQ20vdlqf58ygVp6oPnMyrxlmPkZ52N7YplXMOBBlTXusGyqFAa8WCHbx28lMADiTrtSqyVoQQiuX9kXu2Y9R18y8OQmGEtmnJ8HfdEdDDiwTM/DQt7WV5h8OgOJ67CUcw9gl2vLptPew4C5QnOU+f+efQuZhPcwwJwEsuXe9eZBVWAAslJBqipDu5FgTGoGcWDVSquRFIq47B0XkwpG/aYB7l5KiXcSQGr0AxN+kSh4JjQuQ6Hs+5IiJzRiwAi1tU8BIzMbzbMh+Mupx1CbihgaXSg6qOKRHoIxqXPPfqT3G5gozWXc4RwqAAAAAElFTkSuQmCC"},
+		{"kick", "iVBORw0KGgoAAAANSUhEUgAAACQAAAAkCAYAAADhAJiYAAAACXBIWXMAAA7EAAAOxAGVKw4bAAACNElEQVRYhd2YTWsTQRiAn5nNh/lQJCFW0IKHCF5K8SIlt1xa0mvpD5B68FRIfkgLHmoPkf4ADx5De3DxIuItKCg0h4BeqqZIbBK2MTMesmnTkNTozmbF57TMzM4+O+/s7MsrGGHdmVtQUj4CvYxgHkiMjvFIC80nEAdSqfLz6NG74U4xuCjobDTeO9kGHg+3+4wGdttWslgRNedMyJWpAPkZiYxit61koSJqjgRwVyYoGYB8rHeyBSDWnbkFZYkqswvTJLTs6UXZ38CBywAIJeWGBL0ctMk5eiXkftoTsXMNjt92x/ZlN+Msbl270FYtNak9aY8dn3oQJv86PflhgnmJ+XPGC4mQqZmqpSYA316NX81pMSY0KUx/iiehnz80nc89IyIDPAnV9zrU9zqmXACQRmczgLE9dBl3iwnSS2Eiqd+//0yE0kthbq1dmWqsb0IyDNfvhwGmWhnfhaI3rMtP5Qn8c5vaNyHnSw8718DONfhqn059n28hU13Ofsqnxyp4oWEab/pikZQkk48EL3S43eKQKdIP/rdNfedhjNV6htV6xpSPt5CFrgpity1TLv05TU2U3YwD/QTte/XvkzRjQoPculpqehKSQMuQkwlaYq178wOCe0GbAKD5KEEcBO1xjtiXUqky/SpE0GilVFm69ZndwG3g6Yvo0XsJ0LaSRcAOSkbAy46VLIF7UldEzWlbyYKGHWYbPq1hR1ipwoWC1TBuSW8D9IrPJb19qdSz0ZLeL2Qur3F9TkJXAAAAAElFTkSuQmCC"},
+		{"youtube", "iVBORw0KGgoAAAANSUhEUgAAACQAAAAkCAYAAADhAJiYAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAB8UlEQVRYhe2YMU/CUBDHf62AgyyaOCpuulRdnfgA+i100/hZcMAv4qSg0Wji5OAko8RR0cF2geo5tITawL1WCmXwn1zSpK93v/fu0l4PYhJwBE4EngRcAcnY3ND3iYATjx8FmRc4FfieAMQo+w5jzg+DuZoiSNyufkGFlHnB9K0OYIV5fASskfmcjgTYsoGDGYCBgGHfEngCNvKmCdWyBFxgIW+SUJ4lQe5mRnbeAHEVEq2qVmFtDZaXB7a4CKUSFItQCN34PvR60O3Cxwe8vg7s+Rlubsyx1HdDsSjSbEpmajYDn0pMHejoKDuYvg4PVSC9hnZ2EmU0lQw+daBKRXfuuvD1lQ7I4FMHWlnRnT88wPY2NBrJgVZX9ftqDXmeXg/X14O1u7sirZa5hlx3jKL2/eRAIFIoiBwfi3Q6o5/x/TGKOq0sa2B/VWYp29vLJGX6Cb29mXfkOEFRn53B+rp5faczxgnd3em7/fw011lct7djnFC7re+mXIa5OfOppPCpA93fpwuWRCafU/24NhrGj2uyBq1aDV750fZjaSloPYa1H70evL//bj/a7UTtx3/HaJINeHlDROTZwEveFBG92MBF3hQRnc/ar/Rm/2pmhg19oLzHMZcyYkZUl+kPrOoCJS2RjkBNJj/Sq8mQkd4Prg1E0y9/DacAAAAASUVORK5CYII="},
+		{"tiktok", "iVBORw0KGgoAAAANSUhEUgAAACQAAAAkCAYAAADhAJiYAAAACXBIWXMAAA7EAAAOxAGVKw4bAAADJUlEQVRYhc2YT0gjdxTHP29UkrgXfwGPC1YR62FbRxRETwXZUEVBxGNR2AXrwUNvEg3m5LWQIrtGva9XD5Vd/HMQxZNYWmwhBJGCenEGoQuTgP56iLrOaDYx//R7mt+b9958+L3fG2ae4JFS6pWIvNVavwZeAi+8PkXqM/CviHzSWi/Ztv3n3Zty59qnlPoV+NljL6c08N627V+A1F0gn1JqDfihQiBebdm2/SOQqgJQSv0GjDwRDMA3gUAg6DjO76KUegX8QeXKlE0a+N4QkbfPAAZAROSNcd1Nz0Ja65BBprWLVjgc5vz8HMuysCyL1tbWQtK8NCjRe8YwDES+VL6jo6OQNC+MUsAALhiAsbExqqurH52nZEBemabJ5OTko+PKBgQQiURYXFykvr4+75iylexGw8PDHB4esrGxwdDQUOWAvqaqqipM06SzszOnb9mAtra2uLy8fHTco4EaGxsJh8OsrKywurpKf38/cL9kc3NzdHd3E4vFODo6yjt/3n3p9/uZnZ1lfHzcZV9bW8sak0gkiEajRKNRfD4ftbW1pQESEebn5x88lFrrB2O89lQqRSqVyvmsvEo2MTGRtUOurq4yiYzSHMecO1RXV8fMzIzLlkwmWVpa4vj4mGQyCWQ66a6y7VzRQKFQCL/f74Lp7e3l4uLC5ecFKlQ597mlpcW1jsfj92AqCuQ9G6enpw/6eYEcxykPUCKRcK3b29vv+YgIpmnertPp9O3ZKjnQ9vb2bSdBpuN6enpcMJFIhLa2tlvb7u4u6XS6ICBRSuVsh4WFBUZGvvyUaK3Z3Nzk7OyMrq4umpqaXP4DAwPs7OyUDygYDLK+vk5DQ0POhPF4nKmpqYJgIM8Xo2VZDA4Osr+/n9VHa00sFmN6erpgGMjs0H/k+V1dU1NDX18fo6OjNDc3EwwGOTk5YW9vj+XlZQ4ODoqCAT6LUupv4NtiM5VI/xgi8umpKW4kIh+f26/0d8b1fOb9E8MAvLNt+69nMY4RkU3Lsvq4GccAl47jfAgEAkGgg8oOrN7Ztv0TkOahB1+P9N5orUOUd6T3UWu97B3p/Q+1Uwt/WjrRTwAAAABJRU5ErkJggg=="},
+	};
 	for (const P &pl : plats) {
-		QImage img(s, s, QImage::Format_ARGB32);
-		img.fill(Qt::transparent);
-		QPainter p(&img);
-		p.setRenderHint(QPainter::Antialiasing, true);
-		p.setPen(Qt::NoPen);
-		p.setBrush(QColor(pl.bg));
-		p.drawRoundedRect(0, 0, s, s, 7, 7);
-		const QString key = QString::fromLatin1(pl.key);
-		if (key == QStringLiteral("twitch")) {
-			// Bocadillo de chat blanco (marca Twitch simplificada).
-			p.setBrush(Qt::white);
-			QPainterPath body;
-			body.addRoundedRect(QRectF(7, 6, 18, 14), 2, 2);
-			p.drawPath(body);
-			QPolygonF tail;
-			tail << QPointF(13, 20) << QPointF(13, 25) << QPointF(18, 20);
-			p.drawPolygon(tail);
-		} else if (key == QStringLiteral("youtube")) {
-			// Triángulo de play blanco.
-			p.setBrush(Qt::white);
-			QPolygonF tri;
-			tri << QPointF(12, 9) << QPointF(12, 23) << QPointF(24, 16);
-			p.drawPolygon(tri);
-		} else if (key == QStringLiteral("kick")) {
-			// "K" negra.
-			p.setPen(QColor("#0d0a09"));
-			QFont f = p.font();
-			f.setBold(true);
-			f.setPixelSize(20);
-			p.setFont(f);
-			p.drawText(img.rect(), Qt::AlignCenter, QStringLiteral("K"));
-		} else if (key == QStringLiteral("tiktok")) {
-			// Nota musical (cian + rosa desplazada = estética TikTok).
-			QFont f = p.font();
-			f.setPixelSize(19);
-			f.setBold(true);
-			p.setFont(f);
-			p.setPen(QColor("#25f4ee"));
-			p.drawText(img.rect().translated(-1, -1), Qt::AlignCenter, QStringLiteral("\u266A"));
-			p.setPen(QColor("#fe2c55"));
-			p.drawText(img.rect().translated(1, 1), Qt::AlignCenter, QStringLiteral("\u266A"));
-			p.setPen(Qt::white);
-			p.drawText(img.rect(), Qt::AlignCenter, QStringLiteral("\u266A"));
-		}
-		p.end();
+		QImage img;
+		img.loadFromData(QByteArray::fromBase64(QByteArray(pl.png)), "PNG");
 		m_multiChat->document()->addResource(QTextDocument::ImageResource,
-						     QUrl(QStringLiteral("bcplat://") + key),
+						     QUrl(QStringLiteral("bcplat://") +
+							  QString::fromLatin1(pl.key)),
 						     QVariant(img));
 	}
 }
+
 
 // Añade un mensaje del multichat en vivo: logo de plataforma + "autor:" + texto,
 // cada uno en su propia línea (bloque).
