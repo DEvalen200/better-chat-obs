@@ -108,6 +108,12 @@ QComboBox QAbstractItemView {
 }
 QCheckBox { color: #f6eeea; font-size: 12px; spacing: 8px; }
 QFrame#sep { color: #3a2a25; max-height: 1px; }
+QPushButton#navTab {
+	background: #211815; color: #b9a49c; border: 0; border-radius: 7px;
+	padding: 7px 6px; font-size: 12px; font-weight: 600;
+}
+QPushButton#navTab:hover { background: #2b1f1b; color: #f6eeea; }
+QPushButton#navTab:checked { background: #ff4d8d; color: #1a0c12; }
 QScrollArea#scrollPage { background: transparent; }
 QScrollArea#scrollPage > QWidget > QWidget { background: transparent; }
 QSlider::groove:horizontal { height: 4px; background: #3a2a25; border-radius: 2px; }
@@ -185,6 +191,8 @@ BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
 
 	if (m_api->isLoggedIn()) {
 		m_stack->setCurrentIndex(1);
+		if (m_navBar)
+			m_navBar->setVisible(true);
 		m_api->startStatusPolling();
 		refreshChatList();
 	} else {
@@ -242,6 +250,27 @@ void BetterChatDock::buildUi()
 	title->setObjectName(QStringLiteral("title"));
 	outer->addWidget(title);
 
+	// Nav bar de pestañas (solo visible cuando hay sesión). Cada botón cambia
+	// m_tabStack. Se construye aquí pero se muestra desde onLoggedIn/onLoggedOut.
+	m_navBar = new QWidget(this);
+	auto *navLayout = new QHBoxLayout(m_navBar);
+	navLayout->setContentsMargins(0, 0, 0, 0);
+	navLayout->setSpacing(4);
+	const QStringList tabNames = {QStringLiteral("Ajustes de chat"), QStringLiteral("Multichat"),
+				      QStringLiteral("Minijuegos/Apuestas")};
+	for (int i = 0; i < tabNames.size(); i++) {
+		auto *b = new QPushButton(tabNames[i], m_navBar);
+		b->setObjectName(QStringLiteral("navTab"));
+		b->setCheckable(true);
+		b->setCursor(Qt::PointingHandCursor);
+		b->setChecked(i == 0);
+		connect(b, &QPushButton::clicked, this, [this, i]() { selectTab(i); });
+		navLayout->addWidget(b, 1);
+		m_tabButtons.append(b);
+	}
+	m_navBar->setVisible(false);
+	outer->addWidget(m_navBar);
+
 	m_stack = new QStackedWidget(this);
 	outer->addWidget(m_stack, 1);
 
@@ -281,10 +310,11 @@ void BetterChatDock::buildUi()
 	// ---- Vista 1: logueado ----
 	{
 		auto *page = new QWidget(m_stack);
-		auto *v = new QVBoxLayout(page);
-		v->setContentsMargins(0, 0, 0, 16); // margen inferior (que "Cerrar sesión" respire)
-		v->setSpacing(10);
+		auto *outerV = new QVBoxLayout(page);
+		outerV->setContentsMargins(0, 0, 0, 0);
+		outerV->setSpacing(10);
 
+		// Fila superior común a todas las pestañas: usuario + Dashboard + directo.
 		auto *row = new QHBoxLayout();
 		m_userLabel = new QLabel(page);
 		m_userLabel->setObjectName(QStringLiteral("title"));
@@ -304,7 +334,17 @@ void BetterChatDock::buildUi()
 		m_liveBadge->setObjectName(QStringLiteral("liveOff"));
 		m_liveBadge->setText(QStringLiteral("No estás en directo"));
 		row->addWidget(m_liveBadge, 0, Qt::AlignRight);
-		v->addLayout(row);
+		outerV->addLayout(row);
+
+		// Stack de pestañas (lo cambia la nav bar).
+		m_tabStack = new QStackedWidget(page);
+		outerV->addWidget(m_tabStack, 1);
+
+		// ===== Pestaña 0: Ajustes de chat =====
+		auto *tabChat = new QWidget(m_tabStack);
+		auto *v = new QVBoxLayout(tabChat);
+		v->setContentsMargins(0, 0, 0, 16); // margen inferior (que "Cerrar sesión" respire)
+		v->setSpacing(10);
 
 		auto *listLabel = new QLabel(QStringLiteral("Tus chats en OBS"), page);
 		listLabel->setObjectName(QStringLiteral("muted"));
@@ -441,16 +481,55 @@ void BetterChatDock::buildUi()
 		connect(m_logoutBtn, &QPushButton::clicked, this, &BetterChatDock::onLogout);
 		v->addWidget(m_logoutBtn);
 
-		// Envolver en un scroll area: al desplegar el panel de ajustes el contenido
-		// crece y, sin scroll, el borde inferior (y su margen) quedaba recortado.
-		auto *scroll = new QScrollArea(m_stack);
-		scroll->setWidget(page);
+		// La pestaña "Ajustes de chat" va en un scroll area: al desplegar el panel
+		// de ajustes el contenido crece y, sin scroll, el borde inferior quedaba
+		// recortado.
+		auto *scroll = new QScrollArea(m_tabStack);
+		scroll->setWidget(tabChat);
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
 		scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		scroll->setObjectName(QStringLiteral("scrollPage"));
-		m_stack->addWidget(scroll);
+		m_tabStack->addWidget(scroll); // índice 0
+
+		// ===== Pestaña 1: Multichat (placeholder por ahora) =====
+		{
+			auto *tab = new QWidget(m_tabStack);
+			auto *tv = new QVBoxLayout(tab);
+			tv->setContentsMargins(0, 0, 0, 0);
+			auto *lbl = new QLabel(QStringLiteral("Multichat: próximamente."), tab);
+			lbl->setObjectName(QStringLiteral("muted"));
+			lbl->setWordWrap(true);
+			tv->addWidget(lbl);
+			tv->addStretch(1);
+			m_tabStack->addWidget(tab); // índice 1
+		}
+
+		// ===== Pestaña 2: Minijuegos/Apuestas (placeholder por ahora) =====
+		{
+			auto *tab = new QWidget(m_tabStack);
+			auto *tv = new QVBoxLayout(tab);
+			tv->setContentsMargins(0, 0, 0, 0);
+			auto *lbl = new QLabel(QStringLiteral("Minijuegos y apuestas: próximamente."), tab);
+			lbl->setObjectName(QStringLiteral("muted"));
+			lbl->setWordWrap(true);
+			tv->addWidget(lbl);
+			tv->addStretch(1);
+			m_tabStack->addWidget(tab); // índice 2
+		}
+
+		m_stack->addWidget(page);
 	}
+}
+
+// Cambia la pestaña activa del dock (nav bar) y marca el botón correspondiente.
+void BetterChatDock::selectTab(int index)
+{
+	if (!m_tabStack || index < 0 || index >= m_tabStack->count())
+		return;
+	m_tabStack->setCurrentIndex(index);
+	for (int i = 0; i < m_tabButtons.size(); i++)
+		m_tabButtons[i]->setChecked(i == index);
 }
 
 // ---- Login ----
@@ -484,6 +563,8 @@ void BetterChatDock::onLoggedIn()
 	m_loginBtn->setEnabled(true);
 	m_loginStatus->clear();
 	m_stack->setCurrentIndex(1);
+	if (m_navBar)
+		m_navBar->setVisible(true);
 	m_api->startStatusPolling();
 	refreshChatList();
 }
@@ -496,6 +577,8 @@ void BetterChatDock::onLoggedOut()
 		m_updatingPanel = false;
 	}
 	m_stack->setCurrentIndex(0);
+	if (m_navBar)
+		m_navBar->setVisible(false);
 	m_loginBtn->setEnabled(true);
 	m_loginStatus->clear();
 	m_pairInfo->setVisible(false);

@@ -11,6 +11,7 @@ the Free Software Foundation; either version 2 of the License, or
 #pragma once
 
 #include <QWidget>
+#include <QList>
 
 struct calldata;
 typedef struct calldata calldata_t;
@@ -58,6 +59,7 @@ private:
 	void connectObsSignals();
 	void disconnectObsSignals();
 	void updateSettingsPanel(); // rellena los combos según la instancia seleccionada
+	void selectTab(int index);  // cambia la pestaña activa de la nav bar
 	// Cambia a la escena que contiene la fuente y la selecciona en las fuentes.
 	void focusSelectedChatInObs();
 	// Reescribe un query param en la URL de la fuente seleccionada (dir/align).
@@ -70,6 +72,11 @@ private:
 	BetterChatApi *m_api = nullptr;
 
 	QStackedWidget *m_stack = nullptr;
+
+	// Nav bar de pestañas (visible solo logueado) + stack interno de pestañas.
+	QWidget *m_navBar = nullptr;
+	QStackedWidget *m_tabStack = nullptr;
+	QList<QPushButton *> m_tabButtons;
 
 	// Vista login.
 	QPushButton *m_loginBtn = nullptr;
