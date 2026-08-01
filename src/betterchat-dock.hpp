@@ -41,6 +41,9 @@ class BetterChatDock : public QWidget {
 public:
 	explicit BetterChatDock(QWidget *parent = nullptr);
 	~BetterChatDock() override;
+	// Notifica el cambio de estado de transmisión de OBS al servidor (dispara la
+	// auto-conexión de YouTube). La llama el callback del frontend de OBS.
+	void onStreamingChanged(bool active);
 
 private slots:
 	void onStartLogin();

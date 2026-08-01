@@ -320,6 +320,18 @@ void BetterChatApi::setYouTubeSource(const QString &url)
 	});
 }
 
+void BetterChatApi::setStreaming(bool active)
+{
+	if (m_token.isEmpty())
+		return;
+	QJsonObject body;
+	body.insert(QStringLiteral("active"), active);
+	QByteArray payload = QJsonDocument(body).toJson(QJsonDocument::Compact);
+	QNetworkReply *reply =
+		m_net.post(apiRequest(QStringLiteral("/api/plugin/streaming"), true), payload);
+	connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
+}
+
 void BetterChatApi::logout()
 {
 	if (!m_token.isEmpty()) {

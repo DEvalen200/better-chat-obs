@@ -61,6 +61,9 @@ public:
 	// Fija la fuente de YouTube (URL del directo elegido) y activa su chat.
 	// Emite youtubeSourceSet(ok, message).
 	void setYouTubeSource(const QString &url);
+	// Informa al servidor de si OBS está transmitiendo (dispara la auto-conexión
+	// de YouTube sin esperar a que Twitch/Kick reporten el en vivo).
+	void setStreaming(bool active);
 
 signals:
 	// Emitido con el user_code y la verify_url para mostrarlos en el dock.

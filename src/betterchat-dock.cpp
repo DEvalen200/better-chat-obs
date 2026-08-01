@@ -1469,6 +1469,13 @@ void BetterChatDock::onClearChat()
 	m_api->clearChat();
 }
 
+// Notifica al servidor el cambio de estado de transmisión de OBS.
+void BetterChatDock::onStreamingChanged(bool active)
+{
+	if (m_api)
+		m_api->setStreaming(active);
+}
+
 // ---- Registro en OBS (puente C) ----
 // Se llama desde obs_module_post_load(). En vez de un dock listado en "Paneles"
 // (obs_frontend_add_dock_by_id), creamos un menú propio "BetterChatTV" en la
@@ -1482,7 +1489,6 @@ extern "C" void betterchat_register_dock(void)
 
 	auto *dock = new BetterChatDock();
 	dock->setMinimumWidth(240);
-
 	// Contenedor acoplable propio (NO via obs_frontend_add_dock_by_id, para que
 	// no aparezca en el menú "Paneles"). Empieza flotante y oculto.
 	auto *dockWidget = new QDockWidget(QStringLiteral("BetterChatTV"), mainWindow);
@@ -1506,4 +1512,19 @@ extern "C" void betterchat_register_dock(void)
 		QSignalBlocker block(toggleAction);
 		toggleAction->setChecked(visible);
 	});
+
+	// Escucha los eventos de TRANSMISIÓN de OBS: es la señal más fiable de "estoy
+	// en directo". Al empezar/parar de transmitir, avisamos al servidor (que dispara
+	// la auto-conexión de YouTube). Puntero al dock capturado por el callback C.
+	static BetterChatDock *s_dock = dock;
+	obs_frontend_add_event_callback(
+		[](enum obs_frontend_event event, void *) {
+			if (!s_dock)
+				return;
+			if (event == OBS_FRONTEND_EVENT_STREAMING_STARTED)
+				QMetaObject::invokeMethod(s_dock, [] { s_dock->onStreamingChanged(true); });
+			else if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPED)
+				QMetaObject::invokeMethod(s_dock, [] { s_dock->onStreamingChanged(false); });
+		},
+		nullptr);
 }
