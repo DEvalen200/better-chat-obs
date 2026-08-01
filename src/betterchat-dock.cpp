@@ -139,6 +139,11 @@ QTextEdit#multiChat {
 	background: #211815; border: 1px solid #3a2a25; border-radius: 8px;
 	color: #f6eeea; padding: 4px;
 }
+QPushButton#connBtn {
+	background: #38d39f; color: #06231a; border: 0; border-radius: 6px;
+	padding: 3px 9px; font-size: 11px; font-weight: 700;
+}
+QPushButton#connBtn:hover { background: #4fdcac; }
 QSlider::groove:horizontal { height: 4px; background: #3a2a25; border-radius: 2px; }
 QSlider::sub-page:horizontal { background: #ff4d8d; border-radius: 2px; }
 QSlider::handle:horizontal {
@@ -610,6 +615,19 @@ void BetterChatDock::buildPlatformBar(QVBoxLayout *parent)
 		h->addWidget(chip);
 	}
 	h->addStretch(1);
+	// Botón de ajustes: abre la sección de conexiones de "Configura tu chat" en el
+	// navegador (reutiliza toda la gestión de conexiones de la web).
+	auto *cfgBtn = new QPushButton(QStringLiteral("Conexiones ↗"), m_platBar);
+	cfgBtn->setObjectName(QStringLiteral("connBtn"));
+	cfgBtn->setCursor(Qt::PointingHandCursor);
+	cfgBtn->setToolTip(QStringLiteral("Gestionar las conexiones de plataformas"));
+	connect(cfgBtn, &QPushButton::clicked, this, [this]() {
+		QString base = m_api->baseUrl();
+		if (base.isEmpty())
+			base = QStringLiteral("https://betterchat.tv");
+		QDesktopServices::openUrl(QUrl(base + QStringLiteral("/customize#conexiones")));
+	});
+	h->addWidget(cfgBtn, 0);
 	parent->addWidget(m_platBar);
 	// Estado inicial (se corrige en cuanto lleguen los status por SSE).
 	for (auto it = m_platChips.constBegin(); it != m_platChips.constEnd(); ++it)
