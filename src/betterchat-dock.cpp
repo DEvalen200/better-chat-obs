@@ -541,6 +541,10 @@ void BetterChatDock::buildUi()
 			m_multiChat->setReadOnly(true);
 			m_multiChat->setFocusPolicy(Qt::NoFocus);
 			m_multiChat->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+			// Descarte NATIVO de bloques antiguos: al superar el tope, Qt borra el
+			// bloque más viejo automáticamente (mucho más barato que hacerlo con
+			// cursor). 1000 mensajes de historial sin coste de acumulación.
+			m_multiChat->document()->setMaximumBlockCount(1000);
 			tv->addWidget(m_multiChat, 1);
 
 			m_tabStack->addWidget(tab); // índice 1
@@ -646,22 +650,13 @@ void BetterChatDock::onChatMessage(const QString &platform, const QString &platf
 	QScrollBar *sb = m_multiChat->verticalScrollBar();
 	bool atBottom = sb->value() >= sb->maximum() - 4;
 
-	// Cada mensaje en su PROPIO bloque (línea) -> layout vertical.
+	// Cada mensaje en su PROPIO bloque (línea) -> layout vertical. El descarte de
+	// los mensajes antiguos lo hace el document (setMaximumBlockCount), sin coste.
 	QTextCursor cur(m_multiChat->document());
 	cur.movePosition(QTextCursor::End);
 	if (!m_multiChat->document()->isEmpty())
 		cur.insertBlock();
 	cur.insertHtml(html);
-
-	// Acotar el historial: si crece mucho, borrar el primer bloque.
-	if (++m_multiCount > 300) {
-		QTextCursor c(m_multiChat->document());
-		c.movePosition(QTextCursor::Start);
-		c.select(QTextCursor::BlockUnderCursor);
-		c.removeSelectedText();
-		c.deleteChar();
-		m_multiCount--;
-	}
 
 	if (atBottom)
 		sb->setValue(sb->maximum());

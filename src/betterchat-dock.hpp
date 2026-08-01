@@ -102,7 +102,6 @@ private:
 	// Pestaña Multichat: chat en vivo combinado (SSE).
 	QTextEdit *m_multiChat = nullptr;
 	QLabel *m_multiStatus = nullptr;
-	int m_multiCount = 0; // nº de mensajes añadidos (para acotar el historial)
 	bool m_iconsReady = false; // iconos de plataforma registrados en el documento
 	void registerPlatformIcons();
 	void onChatMessage(const QString &platform, const QString &platformLabel,
