@@ -59,6 +59,18 @@ QPushButton#ghost {
 	background: transparent; color: #b9a49c; border: 1px solid #3a2a25;
 	border-radius: 8px; padding: 7px 12px;
 }
+QPushButton#accent {
+	background: #38d39f; color: #06231a; border: 0; border-radius: 8px;
+	padding: 7px 12px; font-weight: 700;
+}
+QPushButton#accent:hover { background: #4fdcac; }
+QPushButton#accent:disabled { background: #26514a; color: #6f8f87; }
+QPushButton#danger {
+	background: #ff5b6a; color: #2a0006; border: 0; border-radius: 8px;
+	padding: 7px 12px; font-weight: 700;
+}
+QPushButton#danger:hover { background: #ff7280; }
+QPushButton#danger:disabled { background: #5c2b30; color: #a97b80; }
 QLabel#liveOn {
 	background: #38d39f; color: #06231a; border-radius: 6px;
 	padding: 3px 9px; font-weight: 700; font-size: 12px;
@@ -240,7 +252,7 @@ void BetterChatDock::buildUi()
 		row->addWidget(m_userLabel, 1);
 		// Botón "Dashboard ↗" que abre el panel de BetterChatTV en el navegador.
 		auto *dashBtn = new QPushButton(QStringLiteral("Dashboard ↗"), page);
-		dashBtn->setObjectName(QStringLiteral("ghost"));
+		dashBtn->setObjectName(QStringLiteral("accent"));
 		dashBtn->setCursor(Qt::PointingHandCursor);
 		connect(dashBtn, &QPushButton::clicked, this, [this]() {
 			QString base = m_api->baseUrl();
@@ -277,7 +289,7 @@ void BetterChatDock::buildUi()
 		// como botón de papelera en cada fila de la lista.)
 		auto *selRow = new QHBoxLayout();
 		m_addSelBtn = new QPushButton(QStringLiteral("Añadir a esta escena"), page);
-		m_addSelBtn->setObjectName(QStringLiteral("ghost"));
+		m_addSelBtn->setObjectName(QStringLiteral("accent"));
 		m_addSelBtn->setEnabled(false);
 		connect(m_addSelBtn, &QPushButton::clicked, this, &BetterChatDock::onAddSelectedToScene);
 		selRow->addWidget(m_addSelBtn, 1);
@@ -375,13 +387,13 @@ void BetterChatDock::buildUi()
 		connect(m_autoTestCheck, &QCheckBox::toggled, this, &BetterChatDock::onAutoTestToggled);
 		toolsRow->addWidget(m_autoTestCheck, 1);
 		m_clearBtn = new QPushButton(QStringLiteral("Limpiar chat"), page);
-		m_clearBtn->setObjectName(QStringLiteral("ghost"));
+		m_clearBtn->setObjectName(QStringLiteral("danger"));
 		connect(m_clearBtn, &QPushButton::clicked, this, &BetterChatDock::onClearChat);
 		toolsRow->addWidget(m_clearBtn, 0);
 		v->addLayout(toolsRow);
 
 		m_logoutBtn = new QPushButton(QStringLiteral("Cerrar sesión"), page);
-		m_logoutBtn->setObjectName(QStringLiteral("ghost"));
+		m_logoutBtn->setObjectName(QStringLiteral("danger"));
 		connect(m_logoutBtn, &QPushButton::clicked, this, &BetterChatDock::onLogout);
 		v->addWidget(m_logoutBtn);
 
