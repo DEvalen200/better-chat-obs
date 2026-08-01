@@ -634,14 +634,6 @@ void BetterChatDock::buildPlatformBar(QVBoxLayout *parent)
 		h->addWidget(chip);
 	}
 	h->addStretch(1);
-	// Botón "Elegir directo YT": lista los directos activos de YouTube del streamer
-	// (cuenta ya vinculada) para elegir el del stream sin salir a la web.
-	m_ytPickBtn = new QPushButton(QStringLiteral("Elegir directo YT"), m_platBar);
-	m_ytPickBtn->setObjectName(QStringLiteral("ytPickBtn"));
-	m_ytPickBtn->setCursor(Qt::PointingHandCursor);
-	m_ytPickBtn->setToolTip(QStringLiteral("Elegir tu directo de YouTube en curso"));
-	connect(m_ytPickBtn, &QPushButton::clicked, this, &BetterChatDock::toggleYouTubePicker);
-	h->addWidget(m_ytPickBtn, 0);
 	// Botón de ajustes: abre la sección de conexiones de "Configura tu chat" en el
 	// navegador (reutiliza toda la gestión de conexiones de la web).
 	auto *cfgBtn = new QPushButton(QStringLiteral("Conexiones ↗"), m_platBar);
@@ -656,6 +648,21 @@ void BetterChatDock::buildPlatformBar(QVBoxLayout *parent)
 	});
 	h->addWidget(cfgBtn, 0);
 	parent->addWidget(m_platBar);
+
+	// Fila propia (debajo de conexiones) con el botón "Elegir directo YT": lista los
+	// directos activos de YouTube del streamer para elegir el del stream sin ir a la web.
+	auto *ytRow = new QWidget();
+	auto *ytH = new QHBoxLayout(ytRow);
+	ytH->setContentsMargins(0, 0, 0, 0);
+	ytH->setSpacing(6);
+	ytH->addStretch(1);
+	m_ytPickBtn = new QPushButton(QStringLiteral("Elegir directo YT"), ytRow);
+	m_ytPickBtn->setObjectName(QStringLiteral("ytPickBtn"));
+	m_ytPickBtn->setCursor(Qt::PointingHandCursor);
+	m_ytPickBtn->setToolTip(QStringLiteral("Elegir tu directo de YouTube en curso"));
+	connect(m_ytPickBtn, &QPushButton::clicked, this, &BetterChatDock::toggleYouTubePicker);
+	ytH->addWidget(m_ytPickBtn, 0);
+	parent->addWidget(ytRow);
 
 	// Panel plegable del selector de directos de YouTube (oculto por defecto).
 	m_ytPicker = new QWidget();
