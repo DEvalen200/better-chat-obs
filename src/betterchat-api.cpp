@@ -268,6 +268,58 @@ void BetterChatApi::clearChat()
 	});
 }
 
+void BetterChatApi::fetchYouTubeLive()
+{
+	if (m_token.isEmpty()) {
+		emit youtubeLiveError(tr("No has iniciado sesión."));
+		return;
+	}
+	QNetworkReply *reply =
+		m_net.get(apiRequest(QStringLiteral("/api/youtube/live-streams"), true));
+	connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+		reply->deleteLater();
+		const QByteArray body = reply->readAll();
+		int code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		if (reply->error() != QNetworkReply::NoError || code >= 400) {
+			QString msg = QJsonDocument::fromJson(body).object()
+					      .value(QStringLiteral("message")).toString();
+			if (msg.isEmpty())
+				msg = tr("No se pudieron cargar tus directos de YouTube.");
+			emit youtubeLiveError(msg);
+			return;
+		}
+		emit youtubeLiveList(body);
+	});
+}
+
+void BetterChatApi::setYouTubeSource(const QString &url)
+{
+	if (m_token.isEmpty()) {
+		emit youtubeSourceSet(false, tr("No has iniciado sesión."));
+		return;
+	}
+	// Fija la fuente manual de YouTube (sin auto -> no choca con el gating de plus)
+	// y activa su chat. Reutiliza el mismo endpoint que el panel web.
+	QJsonObject yt;
+	yt.insert(QStringLiteral("enabled"), true);
+	yt.insert(QStringLiteral("mode"), QStringLiteral("manual"));
+	yt.insert(QStringLiteral("auto"), false);
+	yt.insert(QStringLiteral("source"), url);
+	QJsonObject body;
+	body.insert(QStringLiteral("youtube"), yt);
+	QByteArray payload = QJsonDocument(body).toJson(QJsonDocument::Compact);
+	QNetworkReply *reply = m_net.post(apiRequest(QStringLiteral("/api/config"), true), payload);
+	connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+		reply->deleteLater();
+		int code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		if (reply->error() != QNetworkReply::NoError || code >= 400) {
+			emit youtubeSourceSet(false, tr("No se pudo fijar el directo."));
+			return;
+		}
+		emit youtubeSourceSet(true, tr("Directo de YouTube conectado."));
+	});
+}
+
 void BetterChatApi::logout()
 {
 	if (!m_token.isEmpty()) {

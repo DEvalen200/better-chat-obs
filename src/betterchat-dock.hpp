@@ -111,6 +111,14 @@ private:
 	void registerPlatformIcons();
 	void buildPlatformBar(QVBoxLayout *parent);   // crea la fila de chips
 	void onPlatformStatus(const QString &platform, const QString &state, const QString &detail);
+	// Selector de directos de YouTube (para no-plus: elegir el directo a mano).
+	QWidget *m_ytPicker = nullptr;      // panel plegable con la lista
+	QVBoxLayout *m_ytList = nullptr;    // contenedor de los directos
+	QLabel *m_ytPickerMsg = nullptr;    // estado/mensajes del selector
+	QPushButton *m_ytPickBtn = nullptr; // botón que abre/refresca el selector
+	void toggleYouTubePicker();
+	void onYouTubeLiveList(const QByteArray &json);
+	void onYouTubeLiveError(const QString &message);
 	void onChatMessage(const QString &platform, const QString &platformLabel,
 			   const QString &author, const QString &text, const QString &color);
 	void onChatEvent(const QString &platform, const QString &platformLabel,

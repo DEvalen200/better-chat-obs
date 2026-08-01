@@ -55,6 +55,12 @@ public:
 	void startChatStream();
 	void stopChatStream();
 	bool chatStreamActive() const { return m_sseReply != nullptr; }
+	// Lista los directos activos de YouTube del streamer (cuenta ya vinculada).
+	// Emite youtubeLiveList() con [{videoId,title,privacy}] o youtubeLiveError().
+	void fetchYouTubeLive();
+	// Fija la fuente de YouTube (URL del directo elegido) y activa su chat.
+	// Emite youtubeSourceSet(ok, message).
+	void setYouTubeSource(const QString &url);
 
 signals:
 	// Emitido con el user_code y la verify_url para mostrarlos en el dock.
@@ -75,6 +81,11 @@ signals:
 		       int amount, const QString &unit);
 	// Estado de conexión de una plataforma en el stream (connecting/connected/off/...).
 	void platformStatus(const QString &platform, const QString &state, const QString &detail);
+	// Lista de directos activos de YouTube (JSON crudo de /api/youtube/live-streams).
+	void youtubeLiveList(const QByteArray &json);
+	void youtubeLiveError(const QString &message);
+	// Resultado de fijar la fuente de YouTube.
+	void youtubeSourceSet(bool ok, const QString &message);
 	void chatStreamStateChanged(bool connected);
 
 private slots:

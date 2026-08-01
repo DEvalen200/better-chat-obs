@@ -22,6 +22,11 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QFrame>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QJsonValue>
+#include <QLayoutItem>
 #include <QTextEdit>
 #include <QTextCursor>
 #include <QTextDocument>
@@ -144,6 +149,20 @@ QPushButton#connBtn {
 	padding: 3px 9px; font-size: 11px; font-weight: 700;
 }
 QPushButton#connBtn:hover { background: #4fdcac; }
+QPushButton#ytPickBtn {
+	background: #ff0000; color: #fff; border: 0; border-radius: 6px;
+	padding: 3px 9px; font-size: 11px; font-weight: 700;
+}
+QPushButton#ytPickBtn:hover { background: #ff3333; }
+QWidget#ytPicker {
+	background: #211815; border: 1px solid #3a2a25; border-radius: 8px;
+}
+QLabel#ytPickTitle { color: #f6eeea; font-weight: 700; font-size: 12px; }
+QPushButton#ytUseBtn {
+	background: #ff4d8d; color: #1a0c12; border: 0; border-radius: 6px;
+	padding: 4px 12px; font-size: 12px; font-weight: 700;
+}
+QPushButton#ytUseBtn:hover { background: #ff6ca1; }
 QSlider::groove:horizontal { height: 4px; background: #3a2a25; border-radius: 2px; }
 QSlider::sub-page:horizontal { background: #ff4d8d; border-radius: 2px; }
 QSlider::handle:horizontal {
@@ -615,6 +634,14 @@ void BetterChatDock::buildPlatformBar(QVBoxLayout *parent)
 		h->addWidget(chip);
 	}
 	h->addStretch(1);
+	// Botón "Elegir directo YT": lista los directos activos de YouTube del streamer
+	// (cuenta ya vinculada) para elegir el del stream sin salir a la web.
+	m_ytPickBtn = new QPushButton(QStringLiteral("Elegir directo YT"), m_platBar);
+	m_ytPickBtn->setObjectName(QStringLiteral("ytPickBtn"));
+	m_ytPickBtn->setCursor(Qt::PointingHandCursor);
+	m_ytPickBtn->setToolTip(QStringLiteral("Elegir tu directo de YouTube en curso"));
+	connect(m_ytPickBtn, &QPushButton::clicked, this, &BetterChatDock::toggleYouTubePicker);
+	h->addWidget(m_ytPickBtn, 0);
 	// Botón de ajustes: abre la sección de conexiones de "Configura tu chat" en el
 	// navegador (reutiliza toda la gestión de conexiones de la web).
 	auto *cfgBtn = new QPushButton(QStringLiteral("Conexiones ↗"), m_platBar);
@@ -629,9 +656,128 @@ void BetterChatDock::buildPlatformBar(QVBoxLayout *parent)
 	});
 	h->addWidget(cfgBtn, 0);
 	parent->addWidget(m_platBar);
+
+	// Panel plegable del selector de directos de YouTube (oculto por defecto).
+	m_ytPicker = new QWidget();
+	m_ytPicker->setObjectName(QStringLiteral("ytPicker"));
+	auto *pv = new QVBoxLayout(m_ytPicker);
+	pv->setContentsMargins(10, 8, 10, 8);
+	pv->setSpacing(6);
+	auto *ptitle = new QLabel(QStringLiteral("Tus directos de YouTube en curso"), m_ytPicker);
+	ptitle->setObjectName(QStringLiteral("ytPickTitle"));
+	pv->addWidget(ptitle);
+	m_ytPickerMsg = new QLabel(QString(), m_ytPicker);
+	m_ytPickerMsg->setObjectName(QStringLiteral("muted"));
+	m_ytPickerMsg->setWordWrap(true);
+	pv->addWidget(m_ytPickerMsg);
+	m_ytList = new QVBoxLayout();
+	m_ytList->setSpacing(5);
+	pv->addLayout(m_ytList);
+	m_ytPicker->setVisible(false);
+	parent->addWidget(m_ytPicker);
+
+	// Conexiones del selector con el API.
+	connect(m_api, &BetterChatApi::youtubeLiveList, this, &BetterChatDock::onYouTubeLiveList);
+	connect(m_api, &BetterChatApi::youtubeLiveError, this, &BetterChatDock::onYouTubeLiveError);
+	connect(m_api, &BetterChatApi::youtubeSourceSet, this, [this](bool ok, const QString &msg) {
+		if (m_ytPickerMsg)
+			m_ytPickerMsg->setText(msg);
+		if (ok) {
+			// Ocultar el panel tras elegir; el chat se reconectará solo.
+			if (m_ytPicker)
+				m_ytPicker->setVisible(false);
+			if (m_ytPickBtn)
+				m_ytPickBtn->setText(QStringLiteral("Elegir directo YT"));
+		}
+	});
+
 	// Estado inicial (se corrige en cuanto lleguen los status por SSE).
 	for (auto it = m_platChips.constBegin(); it != m_platChips.constEnd(); ++it)
 		onPlatformStatus(it.key(), QStringLiteral("off"), QString());
+}
+
+// Abre/cierra el selector de directos de YouTube; al abrir, pide la lista.
+void BetterChatDock::toggleYouTubePicker()
+{
+	if (!m_ytPicker)
+		return;
+	const bool show = !m_ytPicker->isVisible();
+	m_ytPicker->setVisible(show);
+	m_ytPickBtn->setText(show ? QStringLiteral("Ocultar directos")
+				  : QStringLiteral("Elegir directo YT"));
+	if (show) {
+		// Limpiar la lista previa y pedir de nuevo.
+		while (QLayoutItem *it = m_ytList->takeAt(0)) {
+			if (it->widget())
+				it->widget()->deleteLater();
+			delete it;
+		}
+		if (m_ytPickerMsg)
+			m_ytPickerMsg->setText(QStringLiteral("Buscando tus directos..."));
+		m_api->fetchYouTubeLive();
+	}
+}
+
+// Pinta la lista de directos activos de YouTube, con un botón "Usar" por cada uno.
+void BetterChatDock::onYouTubeLiveList(const QByteArray &json)
+{
+	if (!m_ytList)
+		return;
+	while (QLayoutItem *it = m_ytList->takeAt(0)) {
+		if (it->widget())
+			it->widget()->deleteLater();
+		delete it;
+	}
+	QJsonObject obj = QJsonDocument::fromJson(json).object();
+	QJsonArray streams = obj.value(QStringLiteral("streams")).toArray();
+	if (streams.isEmpty()) {
+		if (m_ytPickerMsg)
+			m_ytPickerMsg->setText(QStringLiteral("No tienes directos activos ahora mismo."));
+		return;
+	}
+	if (m_ytPickerMsg)
+		m_ytPickerMsg->setText(QStringLiteral("Elige el directo cuyo chat quieres leer:"));
+	static const QHash<QString, QString> privLabel = {
+		{QStringLiteral("public"), QStringLiteral("Público")},
+		{QStringLiteral("unlisted"), QStringLiteral("No listado")},
+		{QStringLiteral("private"), QStringLiteral("Privado")},
+	};
+	for (const QJsonValue &v : streams) {
+		QJsonObject s = v.toObject();
+		const QString videoId = s.value(QStringLiteral("videoId")).toString();
+		QString title = s.value(QStringLiteral("title")).toString();
+		const QString privacy = s.value(QStringLiteral("privacy")).toString();
+		if (title.isEmpty())
+			title = QStringLiteral("(sin título)");
+
+		auto *row = new QWidget(m_ytPicker);
+		auto *rh = new QHBoxLayout(row);
+		rh->setContentsMargins(0, 0, 0, 0);
+		rh->setSpacing(8);
+		auto *lbl = new QLabel(row);
+		lbl->setTextFormat(Qt::RichText);
+		lbl->setText(QStringLiteral("<b>%1</b> <span style='color:#b9a49c; font-size:11px;'>%2</span>")
+				     .arg(title.toHtmlEscaped(), privLabel.value(privacy, privacy)));
+		lbl->setWordWrap(true);
+		rh->addWidget(lbl, 1);
+		auto *use = new QPushButton(QStringLiteral("Usar"), row);
+		use->setObjectName(QStringLiteral("ytUseBtn"));
+		use->setCursor(Qt::PointingHandCursor);
+		const QString url = QStringLiteral("https://www.youtube.com/watch?v=") + videoId;
+		connect(use, &QPushButton::clicked, this, [this, url]() {
+			if (m_ytPickerMsg)
+				m_ytPickerMsg->setText(QStringLiteral("Conectando..."));
+			m_api->setYouTubeSource(url);
+		});
+		rh->addWidget(use, 0);
+		m_ytList->addWidget(row);
+	}
+}
+
+void BetterChatDock::onYouTubeLiveError(const QString &message)
+{
+	if (m_ytPickerMsg)
+		m_ytPickerMsg->setText(message);
 }
 
 // Refresca el chip de una plataforma según su estado de conexión en el stream.
