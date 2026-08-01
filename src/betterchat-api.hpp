@@ -50,6 +50,11 @@ public:
 	bool autoTestActive() const { return m_autoTest; }
 	// Limpia el chat del overlay (POST /api/plugin/clear).
 	void clearChat();
+	// Abre/cierra el stream SSE del multichat en vivo (/api/plugin/chat-stream).
+	// Emite chatMessage() por cada mensaje real recibido.
+	void startChatStream();
+	void stopChatStream();
+	bool chatStreamActive() const { return m_sseReply != nullptr; }
 
 signals:
 	// Emitido con el user_code y la verify_url para mostrarlos en el dock.
@@ -61,6 +66,10 @@ signals:
 	void statusError(const QString &message);
 	// Resultado de una acción de chat (test/clear): ok o mensaje de error.
 	void chatActionResult(bool ok, const QString &message);
+	// Multichat en vivo (SSE): un mensaje real de chat.
+	void chatMessage(const QString &platform, const QString &platformLabel,
+			 const QString &author, const QString &text, const QString &color);
+	void chatStreamStateChanged(bool connected);
 
 private slots:
 	void pollPairing();
@@ -78,6 +87,13 @@ private:
 	QString m_platform;
 	bool m_live = false;
 	bool m_autoTest = false; // estado de los mensajes de prueba automáticos (sincronía)
+
+	// Stream SSE del multichat en vivo.
+	QNetworkReply *m_sseReply = nullptr;
+	QByteArray m_sseBuffer;
+	QTimer m_sseRetryTimer;
+	void handleSseData();
+	void processSseEvent(const QByteArray &block);
 
 	// Estado del emparejamiento en curso.
 	QString m_deviceCode;

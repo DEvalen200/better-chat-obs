@@ -277,10 +277,104 @@ void BetterChatApi::logout()
 		connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
 	}
 	stopStatusPolling();
+	stopChatStream();
 	saveToken(QString());
 	m_username.clear();
 	m_overlayUrl.clear();
 	m_live = false;
 	m_platform.clear();
 	emit loggedOut();
+}
+
+// ---- Multichat en vivo (SSE) ----
+
+void BetterChatApi::startChatStream()
+{
+	if (m_token.isEmpty() || m_sseReply)
+		return;
+	QNetworkRequest req = apiRequest(QStringLiteral("/api/plugin/chat-stream"), true);
+	req.setRawHeader("Accept", "text/event-stream");
+	// Sin timeout: es un stream persistente.
+	req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+	m_sseBuffer.clear();
+	m_sseReply = m_net.get(req);
+	connect(m_sseReply, &QNetworkReply::readyRead, this, &BetterChatApi::handleSseData);
+	connect(m_sseReply, &QNetworkReply::finished, this, [this]() {
+		bool wasActive = m_sseReply != nullptr;
+		if (m_sseReply) {
+			m_sseReply->deleteLater();
+			m_sseReply = nullptr;
+		}
+		emit chatStreamStateChanged(false);
+		// Reconexión automática mientras siga logueado (backoff simple).
+		if (wasActive && !m_token.isEmpty())
+			m_sseRetryTimer.start(3000);
+	});
+	// Configurar el timer de reintento una sola vez.
+	if (!m_sseRetryTimer.isSingleShot()) {
+		m_sseRetryTimer.setSingleShot(true);
+		connect(&m_sseRetryTimer, &QTimer::timeout, this, [this]() {
+			if (!m_token.isEmpty() && !m_sseReply)
+				startChatStream();
+		});
+	}
+	emit chatStreamStateChanged(true);
+}
+
+void BetterChatApi::stopChatStream()
+{
+	m_sseRetryTimer.stop();
+	if (m_sseReply) {
+		QNetworkReply *r = m_sseReply;
+		m_sseReply = nullptr;
+		r->abort();
+		r->deleteLater();
+		emit chatStreamStateChanged(false);
+	}
+	m_sseBuffer.clear();
+}
+
+void BetterChatApi::handleSseData()
+{
+	if (!m_sseReply)
+		return;
+	m_sseBuffer += m_sseReply->readAll();
+	// Los eventos SSE se separan por línea en blanco (\n\n).
+	int idx;
+	while ((idx = m_sseBuffer.indexOf("\n\n")) != -1) {
+		QByteArray block = m_sseBuffer.left(idx);
+		m_sseBuffer.remove(0, idx + 2);
+		processSseEvent(block);
+	}
+}
+
+void BetterChatApi::processSseEvent(const QByteArray &block)
+{
+	// Extraer las líneas 'data:' (ignorar comentarios ':' y 'retry:').
+	QByteArray payload;
+	for (const QByteArray &line : block.split('\n')) {
+		if (line.startsWith("data:"))
+			payload += line.mid(5).trimmed();
+	}
+	if (payload.isEmpty())
+		return;
+	QJsonParseError err;
+	QJsonDocument doc = QJsonDocument::fromJson(payload, &err);
+	if (err.error != QJsonParseError::NoError || !doc.isObject())
+		return;
+	QJsonObject o = doc.object();
+	if (o.value(QStringLiteral("type")).toString() != QStringLiteral("chat"))
+		return; // solo mensajes de chat (ignorar status/clear/etc.)
+	QJsonObject m = o.value(QStringLiteral("message")).toObject();
+	// El multichat muestra el chat REAL, no los mensajes de prueba.
+	if (m.value(QStringLiteral("test")).toBool() || m.value(QStringLiteral("synthetic")).toBool())
+		return;
+	const QString platform = m.value(QStringLiteral("platform")).toString();
+	const QString label = m.value(QStringLiteral("platformLabel")).toString();
+	QString author = m.value(QStringLiteral("displayName")).toString();
+	if (author.isEmpty())
+		author = m.value(QStringLiteral("username")).toString();
+	const QString text = m.value(QStringLiteral("text")).toString();
+	const QString color = m.value(QStringLiteral("color")).toString();
+	emit chatMessage(platform, label, author, text, color);
 }

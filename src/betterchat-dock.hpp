@@ -97,6 +97,12 @@ private:
 	QSpinBox *m_scaleSpin = nullptr;
 	bool m_updatingPanel = false; // evita realimentar señales al rellenar los combos
 	QPushButton *m_logoutBtn = nullptr;
+
+	// Pestaña Multichat: chat en vivo combinado (SSE).
+	QListWidget *m_multiList = nullptr;
+	QLabel *m_multiStatus = nullptr;
+	void onChatMessage(const QString &platform, const QString &platformLabel,
+			   const QString &author, const QString &text, const QString &color);
 	QLabel *m_actionStatus = nullptr;
 	// Herramientas de prueba (mensajes automáticos + limpiar).
 	QCheckBox *m_autoTestCheck = nullptr;

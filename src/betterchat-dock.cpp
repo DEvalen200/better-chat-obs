@@ -21,6 +21,9 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QPushButton>
 #include <QFrame>
 #include <QListWidget>
+#include <QListWidgetItem>
+#include <QAbstractItemView>
+#include <QHash>
 #include <QScrollArea>
 #include <QComboBox>
 #include <QCheckBox>
@@ -120,6 +123,11 @@ QPushButton#navTab:checked {
 }
 QScrollArea#scrollPage { background: transparent; }
 QScrollArea#scrollPage > QWidget > QWidget { background: transparent; }
+QListWidget#multiList {
+	background: #211815; border: 1px solid #3a2a25; border-radius: 8px;
+	color: #f6eeea; padding: 4px; outline: 0;
+}
+QListWidget#multiList::item { border-bottom: 1px solid #2b1f1b; }
 QSlider::groove:horizontal { height: 4px; background: #3a2a25; border-radius: 2px; }
 QSlider::sub-page:horizontal { background: #ff4d8d; border-radius: 2px; }
 QSlider::handle:horizontal {
@@ -182,6 +190,13 @@ BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
 	connect(m_api, &BetterChatApi::loggedIn, this, &BetterChatDock::onLoggedIn);
 	connect(m_api, &BetterChatApi::loggedOut, this, &BetterChatDock::onLoggedOut);
 	connect(m_api, &BetterChatApi::statusUpdated, this, &BetterChatDock::onStatusUpdated);
+	connect(m_api, &BetterChatApi::chatMessage, this, &BetterChatDock::onChatMessage);
+	connect(m_api, &BetterChatApi::chatStreamStateChanged, this, [this](bool connected) {
+		if (m_multiStatus && m_tabStack && m_tabStack->currentIndex() == 1)
+			m_multiStatus->setText(connected
+				? QStringLiteral("Conectado. Esperando mensajes del chat en vivo...")
+				: QStringLiteral("Reconectando al chat en vivo..."));
+	});
 	connect(m_api, &BetterChatApi::chatActionResult, this, [this](bool ok, const QString &msg) {
 		if (!msg.isEmpty())
 			m_actionStatus->setText(msg);
@@ -497,16 +512,26 @@ void BetterChatDock::buildUi()
 		scroll->setObjectName(QStringLiteral("scrollPage"));
 		m_tabStack->addWidget(scroll); // índice 0
 
-		// ===== Pestaña 1: Multichat (placeholder por ahora) =====
+		// ===== Pestaña 1: Multichat (chat en vivo combinado) =====
 		{
 			auto *tab = new QWidget(m_tabStack);
 			auto *tv = new QVBoxLayout(tab);
 			tv->setContentsMargins(0, 0, 0, 0);
-			auto *lbl = new QLabel(QStringLiteral("Multichat: próximamente."), tab);
-			lbl->setObjectName(QStringLiteral("muted"));
-			lbl->setWordWrap(true);
-			tv->addWidget(lbl);
-			tv->addStretch(1);
+			tv->setSpacing(8);
+
+			m_multiStatus = new QLabel(
+				QStringLiteral("Chat en vivo de todas tus plataformas conectadas."), tab);
+			m_multiStatus->setObjectName(QStringLiteral("muted"));
+			m_multiStatus->setWordWrap(true);
+			tv->addWidget(m_multiStatus);
+
+			m_multiList = new QListWidget(tab);
+			m_multiList->setObjectName(QStringLiteral("multiList"));
+			m_multiList->setWordWrap(true);
+			m_multiList->setSelectionMode(QAbstractItemView::NoSelection);
+			m_multiList->setFocusPolicy(Qt::NoFocus);
+			tv->addWidget(m_multiList, 1);
+
 			m_tabStack->addWidget(tab); // índice 1
 		}
 
@@ -535,6 +560,63 @@ void BetterChatDock::selectTab(int index)
 	m_tabStack->setCurrentIndex(index);
 	for (int i = 0; i < m_tabButtons.size(); i++)
 		m_tabButtons[i]->setChecked(i == index);
+	// El stream del multichat solo corre mientras la pestaña está visible (ahorra
+	// conexión y carga del servidor cuando no se está mirando).
+	if (index == 1) {
+		if (m_multiStatus)
+			m_multiStatus->setText(QStringLiteral("Conectando al chat en vivo..."));
+		m_api->startChatStream();
+	} else {
+		m_api->stopChatStream();
+	}
+}
+
+// Añade un mensaje del multichat en vivo a la lista, con prefijo de plataforma.
+void BetterChatDock::onChatMessage(const QString &platform, const QString &platformLabel,
+				   const QString &author, const QString &text, const QString &color)
+{
+	if (!m_multiList)
+		return;
+	if (m_multiStatus)
+		m_multiStatus->setText(QStringLiteral("Chat en vivo de todas tus plataformas conectadas."));
+
+	auto *item = new QListWidgetItem(m_multiList);
+	auto *w = new QWidget(m_multiList);
+	auto *h = new QHBoxLayout(w);
+	h->setContentsMargins(2, 3, 2, 3);
+	h->setSpacing(7);
+
+	// Etiqueta de plataforma con color propio.
+	static const QHash<QString, QString> platColors = {
+		{QStringLiteral("twitch"), QStringLiteral("#9146ff")},
+		{QStringLiteral("youtube"), QStringLiteral("#ff0000")},
+		{QStringLiteral("kick"), QStringLiteral("#53fc18")},
+		{QStringLiteral("tiktok"), QStringLiteral("#25f4ee")},
+	};
+	auto *tag = new QLabel(platformLabel.isEmpty() ? platform : platformLabel, w);
+	QString bg = platColors.value(platform.toLower(), QStringLiteral("#3a2a25"));
+	tag->setStyleSheet(QStringLiteral("background:%1; color:#0d0a09; border-radius:4px; "
+					  "padding:1px 6px; font-weight:700; font-size:10px;")
+				   .arg(bg));
+	tag->setAlignment(Qt::AlignTop);
+	h->addWidget(tag, 0, Qt::AlignTop);
+
+	// Autor + texto.
+	QString nameColor = color.isEmpty() ? QStringLiteral("#ff9ec4") : color;
+	auto *body = new QLabel(w);
+	body->setTextFormat(Qt::RichText);
+	body->setWordWrap(true);
+	body->setText(QStringLiteral("<b style='color:%1'>%2</b> <span style='color:#f6eeea'>%3</span>")
+			      .arg(nameColor, author.toHtmlEscaped(), text.toHtmlEscaped()));
+	h->addWidget(body, 1);
+
+	item->setSizeHint(w->sizeHint());
+	m_multiList->setItemWidget(item, w);
+
+	// Mantener acotado el historial y auto-scroll al final.
+	while (m_multiList->count() > 200)
+		delete m_multiList->takeItem(0);
+	m_multiList->scrollToBottom();
 }
 
 // ---- Login ----
@@ -584,6 +666,8 @@ void BetterChatDock::onLoggedOut()
 	m_stack->setCurrentIndex(0);
 	if (m_navBar)
 		m_navBar->setVisible(false);
+	if (m_tabStack)
+		selectTab(0); // volver a la primera pestaña y parar el stream
 	m_loginBtn->setEnabled(true);
 	m_loginStatus->clear();
 	m_pairInfo->setVisible(false);
