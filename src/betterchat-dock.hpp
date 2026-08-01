@@ -12,6 +12,7 @@ the Free Software Foundation; either version 2 of the License, or
 
 #include <QWidget>
 #include <QList>
+#include <QHash>
 
 struct calldata;
 typedef struct calldata calldata_t;
@@ -22,6 +23,7 @@ class QLabel;
 class QPushButton;
 class QListWidget;
 class QTextEdit;
+class QVBoxLayout;
 class QComboBox;
 class QWidget;
 class QCheckBox;
@@ -102,8 +104,12 @@ private:
 	// Pestaña Multichat: chat en vivo combinado (SSE).
 	QTextEdit *m_multiChat = nullptr;
 	QLabel *m_multiStatus = nullptr;
+	QWidget *m_platBar = nullptr;                 // fila de chips de estado por plataforma
+	QHash<QString, QLabel *> m_platChips;         // platform -> chip
 	bool m_iconsReady = false; // iconos de plataforma registrados en el documento
 	void registerPlatformIcons();
+	void buildPlatformBar(QVBoxLayout *parent);   // crea la fila de chips
+	void onPlatformStatus(const QString &platform, const QString &state, const QString &detail);
 	void onChatMessage(const QString &platform, const QString &platformLabel,
 			   const QString &author, const QString &text, const QString &color);
 	void onChatEvent(const QString &platform, const QString &platformLabel,

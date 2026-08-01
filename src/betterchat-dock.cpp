@@ -203,6 +203,7 @@ BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
 	connect(m_api, &BetterChatApi::statusUpdated, this, &BetterChatDock::onStatusUpdated);
 	connect(m_api, &BetterChatApi::chatMessage, this, &BetterChatDock::onChatMessage);
 	connect(m_api, &BetterChatApi::chatEvent, this, &BetterChatDock::onChatEvent);
+	connect(m_api, &BetterChatApi::platformStatus, this, &BetterChatDock::onPlatformStatus);
 	connect(m_api, &BetterChatApi::chatStreamStateChanged, this, [this](bool connected) {
 		if (m_multiStatus && m_tabStack && m_tabStack->currentIndex() == 1)
 			m_multiStatus->setText(connected
@@ -531,8 +532,11 @@ void BetterChatDock::buildUi()
 			tv->setContentsMargins(0, 0, 0, 0);
 			tv->setSpacing(8);
 
+			// Fila de chips: estado de conexión de cada plataforma.
+			buildPlatformBar(tv);
+
 			m_multiStatus = new QLabel(
-				QStringLiteral("Chat en vivo de todas tus plataformas conectadas."), tab);
+				QStringLiteral("Esperando mensajes del chat en vivo..."), tab);
 			m_multiStatus->setObjectName(QStringLiteral("muted"));
 			m_multiStatus->setWordWrap(true);
 			tv->addWidget(m_multiStatus);
@@ -585,6 +589,74 @@ void BetterChatDock::selectTab(int index)
 	} else {
 		m_api->stopChatStream();
 	}
+}
+
+// Construye la fila de chips de estado por plataforma (encima del multichat). Cada
+// chip lleva el logo de la plataforma + un texto de estado; empieza en "off".
+void BetterChatDock::buildPlatformBar(QVBoxLayout *parent)
+{
+	m_platBar = new QWidget();
+	auto *h = new QHBoxLayout(m_platBar);
+	h->setContentsMargins(0, 0, 0, 0);
+	h->setSpacing(6);
+	const char *order[] = {"twitch", "youtube", "kick", "tiktok"};
+	for (const char *key : order) {
+		auto *chip = new QLabel(m_platBar);
+		chip->setObjectName(QStringLiteral("platChip"));
+		chip->setTextFormat(Qt::RichText);
+		m_platChips.insert(QString::fromLatin1(key), chip);
+		h->addWidget(chip);
+	}
+	h->addStretch(1);
+	parent->addWidget(m_platBar);
+	// Estado inicial (se corrige en cuanto lleguen los status por SSE).
+	for (auto it = m_platChips.constBegin(); it != m_platChips.constEnd(); ++it)
+		onPlatformStatus(it.key(), QStringLiteral("off"), QString());
+}
+
+// Refresca el chip de una plataforma según su estado de conexión en el stream.
+void BetterChatDock::onPlatformStatus(const QString &platform, const QString &state,
+				      const QString &detail)
+{
+	Q_UNUSED(detail);
+	QLabel *chip = m_platChips.value(platform.toLower(), nullptr);
+	if (!chip)
+		return;
+	registerPlatformIcons();
+
+	// Color del punto + texto según el estado.
+	QString dot, label;
+	if (state == QStringLiteral("connected")) {
+		dot = QStringLiteral("#38d39f"); label = QStringLiteral("chat en vivo");
+	} else if (state == QStringLiteral("connecting")) {
+		dot = QStringLiteral("#ffb020"); label = QStringLiteral("conectando");
+	} else if (state == QStringLiteral("error")) {
+		dot = QStringLiteral("#ff5b6a"); label = QStringLiteral("error");
+	} else if (state == QStringLiteral("disconnected")) {
+		dot = QStringLiteral("#ff5b6a"); label = QStringLiteral("sin directo");
+	} else { // off (no configurada)
+		dot = QStringLiteral("#6b5a53"); label = QStringLiteral("no conectada");
+	}
+
+	const QString plat = platform.toLower();
+	static const QHash<QString, bool> known = {
+		{QStringLiteral("twitch"), true}, {QStringLiteral("youtube"), true},
+		{QStringLiteral("kick"), true}, {QStringLiteral("tiktok"), true},
+	};
+	QString icon = known.value(plat, false)
+		? QStringLiteral("<img src='bcplat://%1' width='13' height='13'>").arg(plat)
+		: plat.toHtmlEscaped();
+
+	// Chip: [logo] •estado, con punto de color según el estado.
+	chip->setText(QStringLiteral(
+			      "%1 <span style='color:%2;'>&#9679;</span> "
+			      "<span style='color:#b9a49c; font-size:11px;'>%3</span>")
+			      .arg(icon, dot, label));
+	chip->setStyleSheet(state == QStringLiteral("off")
+				    ? QStringLiteral("QLabel#platChip { background:#211815; border:1px solid #2b1f1b; "
+						     "border-radius:6px; padding:3px 7px; }")
+				    : QStringLiteral("QLabel#platChip { background:#2b1f1b; border:1px solid #3a2a25; "
+						     "border-radius:6px; padding:3px 7px; }"));
 }
 
 // Iconos oficiales de cada plataforma, pre-rasterizados a PNG (con el renderer SVG

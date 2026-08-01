@@ -364,6 +364,13 @@ void BetterChatApi::processSseEvent(const QByteArray &block)
 		return;
 	QJsonObject o = doc.object();
 	const QString type = o.value(QStringLiteral("type")).toString();
+	if (type == QStringLiteral("status")) {
+		QJsonObject s = o.value(QStringLiteral("status")).toObject();
+		emit platformStatus(s.value(QStringLiteral("platform")).toString(),
+				    s.value(QStringLiteral("state")).toString(),
+				    s.value(QStringLiteral("detail")).toString());
+		return;
+	}
 	if (type == QStringLiteral("event")) {
 		QJsonObject e = o.value(QStringLiteral("event")).toObject();
 		emit chatEvent(e.value(QStringLiteral("platform")).toString(),

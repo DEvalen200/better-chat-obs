@@ -73,6 +73,8 @@ signals:
 	void chatEvent(const QString &platform, const QString &platformLabel,
 		       const QString &kind, const QString &actor, const QString &text,
 		       int amount, const QString &unit);
+	// Estado de conexión de una plataforma en el stream (connecting/connected/off/...).
+	void platformStatus(const QString &platform, const QString &state, const QString &detail);
 	void chatStreamStateChanged(bool connected);
 
 private slots:
