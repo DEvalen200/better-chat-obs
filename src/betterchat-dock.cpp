@@ -21,6 +21,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QPushButton>
 #include <QFrame>
 #include <QListWidget>
+#include <QScrollArea>
 #include <QComboBox>
 #include <QCheckBox>
 #include <QSlider>
@@ -107,6 +108,8 @@ QComboBox QAbstractItemView {
 }
 QCheckBox { color: #f6eeea; font-size: 12px; spacing: 8px; }
 QFrame#sep { color: #3a2a25; max-height: 1px; }
+QScrollArea#scrollPage { background: transparent; }
+QScrollArea#scrollPage > QWidget > QWidget { background: transparent; }
 QSlider::groove:horizontal { height: 4px; background: #3a2a25; border-radius: 2px; }
 QSlider::sub-page:horizontal { background: #ff4d8d; border-radius: 2px; }
 QSlider::handle:horizontal {
@@ -310,6 +313,10 @@ void BetterChatDock::buildUi()
 		// Lista de instancias de chat existentes (cada una su propio tamaño).
 		m_chatList = new QListWidget(page);
 		m_chatList->setObjectName(QStringLiteral("chatList"));
+		// Altura acotada: dentro del scroll de la página, evita que la lista se
+		// estire sin límite y empuje los controles fuera de vista.
+		m_chatList->setMinimumHeight(70);
+		m_chatList->setMaximumHeight(180);
 		connect(m_chatList, &QListWidget::itemSelectionChanged, this, [this]() {
 			bool sel = m_chatList->currentItem() != nullptr;
 			m_addSelBtn->setEnabled(sel);
@@ -434,7 +441,15 @@ void BetterChatDock::buildUi()
 		connect(m_logoutBtn, &QPushButton::clicked, this, &BetterChatDock::onLogout);
 		v->addWidget(m_logoutBtn);
 
-		m_stack->addWidget(page);
+		// Envolver en un scroll area: al desplegar el panel de ajustes el contenido
+		// crece y, sin scroll, el borde inferior (y su margen) quedaba recortado.
+		auto *scroll = new QScrollArea(m_stack);
+		scroll->setWidget(page);
+		scroll->setWidgetResizable(true);
+		scroll->setFrameShape(QFrame::NoFrame);
+		scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		scroll->setObjectName(QStringLiteral("scrollPage"));
+		m_stack->addWidget(scroll);
 	}
 }
 
