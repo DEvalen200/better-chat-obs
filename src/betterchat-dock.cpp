@@ -29,6 +29,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QtMath>
 #include <QUrl>
 #include <QUrlQuery>
+#include <QDesktopServices>
 #include <QIcon>
 #include <QPixmap>
 #include <QSize>
@@ -243,6 +244,18 @@ void BetterChatDock::buildUi()
 		row->addWidget(m_liveBadge, 0, Qt::AlignRight);
 		v->addLayout(row);
 
+		// Botón para abrir el dashboard de BetterChatTV en el navegador.
+		auto *dashBtn = new QPushButton(QStringLiteral("Abrir mi panel de BetterChatTV"), page);
+		dashBtn->setObjectName(QStringLiteral("ghost"));
+		dashBtn->setCursor(Qt::PointingHandCursor);
+		connect(dashBtn, &QPushButton::clicked, this, [this]() {
+			QString base = m_api->baseUrl();
+			if (base.isEmpty())
+				base = QStringLiteral("https://betterchat.tv");
+			QDesktopServices::openUrl(QUrl(base + QStringLiteral("/dashboard")));
+		});
+		v->addWidget(dashBtn);
+
 		auto *listLabel = new QLabel(QStringLiteral("Tus chats en OBS"), page);
 		listLabel->setObjectName(QStringLiteral("muted"));
 		v->addWidget(listLabel);
@@ -308,11 +321,11 @@ void BetterChatDock::buildUi()
 		scaleLabel->setObjectName(QStringLiteral("muted"));
 		scaleRow->addWidget(scaleLabel, 0);
 		m_scaleSlider = new QSlider(Qt::Horizontal, m_settingsPanel);
-		m_scaleSlider->setRange(30, 400); // coincide con el clamp del overlay
+		m_scaleSlider->setRange(30, 200); // coincide con el clamp del overlay
 		m_scaleSlider->setValue(100);
 		scaleRow->addWidget(m_scaleSlider, 1);
 		m_scaleSpin = new QSpinBox(m_settingsPanel);
-		m_scaleSpin->setRange(30, 400);
+		m_scaleSpin->setRange(30, 200);
 		m_scaleSpin->setValue(100);
 		m_scaleSpin->setSuffix(QStringLiteral(" %"));
 		scaleRow->addWidget(m_scaleSpin, 0);
@@ -622,7 +635,7 @@ void BetterChatDock::updateSettingsPanel()
 		if (f > 0)
 			scalePct = (int)qRound(f * 100.0);
 	}
-	scalePct = qBound(30, scalePct, 400);
+	scalePct = qBound(30, scalePct, 200);
 	m_scaleSlider->setValue(scalePct);
 	m_scaleSpin->setValue(scalePct);
 	m_updatingPanel = false;
