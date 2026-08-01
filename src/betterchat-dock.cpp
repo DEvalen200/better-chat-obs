@@ -608,10 +608,27 @@ void BetterChatDock::onChatMessage(const QString &platform, const QString &platf
 	body->setWordWrap(true);
 	body->setText(QStringLiteral("<b style='color:%1'>%2</b> <span style='color:#f6eeea'>%3</span>")
 			      .arg(nameColor, author.toHtmlEscaped(), text.toHtmlEscaped()));
+	body->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
 	h->addWidget(body, 1);
 
-	item->setSizeHint(w->sizeHint());
 	m_multiList->setItemWidget(item, w);
+	// Calcular la altura real: el QLabel con word-wrap sabe su alto para un ancho
+	// dado (heightForWidth). Si el sizeHint directo se usa antes de conocer el ancho
+	// del viewport, el texto se corta. Reservamos el ancho de la etiqueta y el
+	// espaciado, y medimos el cuerpo con el ancho que le queda.
+	auto relayout = [this, item, w, body, tag]() {
+		int avail = m_multiList->viewport()->width();
+		int bodyW = avail - tag->sizeHint().width() - 7 - 4 - 6;
+		if (bodyW < 40)
+			bodyW = 40;
+		int bodyH = body->heightForWidth(bodyW);
+		if (bodyH <= 0)
+			bodyH = body->sizeHint().height();
+		int rowH = qMax(bodyH, tag->sizeHint().height()) + 6; // +márgenes verticales
+		item->setSizeHint(QSize(avail - 4, rowH));
+		w->resize(avail - 4, rowH);
+	};
+	relayout();
 
 	// Mantener acotado el historial y auto-scroll al final.
 	while (m_multiList->count() > 200)
