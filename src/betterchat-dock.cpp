@@ -202,6 +202,7 @@ BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
 	connect(m_api, &BetterChatApi::loggedOut, this, &BetterChatDock::onLoggedOut);
 	connect(m_api, &BetterChatApi::statusUpdated, this, &BetterChatDock::onStatusUpdated);
 	connect(m_api, &BetterChatApi::chatMessage, this, &BetterChatDock::onChatMessage);
+	connect(m_api, &BetterChatApi::chatEvent, this, &BetterChatDock::onChatEvent);
 	connect(m_api, &BetterChatApi::chatStreamStateChanged, this, [this](bool connected) {
 		if (m_multiStatus && m_tabStack && m_tabStack->currentIndex() == 1)
 			m_multiStatus->setText(connected
@@ -662,7 +663,97 @@ void BetterChatDock::onChatMessage(const QString &platform, const QString &platf
 		sb->setValue(sb->maximum());
 }
 
-// ---- Login ----
+// Pinta un evento destacado (donación/sub/regalo...) como una línea resaltada con
+// fondo de color, icono de plataforma y un texto legible según el tipo.
+void BetterChatDock::onChatEvent(const QString &platform, const QString &platformLabel,
+				 const QString &kind, const QString &actor, const QString &text,
+				 int amount, const QString &unit)
+{
+	if (!m_multiChat)
+		return;
+	registerPlatformIcons();
+
+	const QString plat = platform.toLower();
+	static const QHash<QString, bool> known = {
+		{QStringLiteral("twitch"), true}, {QStringLiteral("youtube"), true},
+		{QStringLiteral("kick"), true}, {QStringLiteral("tiktok"), true},
+	};
+	QString icon;
+	if (known.value(plat, false))
+		icon = QStringLiteral("<img src='bcplat://%1' width='15' height='15'>").arg(plat);
+	else
+		icon = platformLabel.toHtmlEscaped();
+
+	// Color e ícono-emoji semántico segun el tipo de evento.
+	QString accent = QStringLiteral("#ff4d8d");
+	QString glyph, desc;
+	const QString A = QStringLiteral("<b>%1</b>").arg(actor.toHtmlEscaped());
+	if (kind == QStringLiteral("cheer")) {
+		accent = QStringLiteral("#9146ff"); glyph = QStringLiteral("BITS");
+		desc = QStringLiteral("%1 donó %2 bits").arg(A).arg(amount);
+	} else if (kind == QStringLiteral("superchat")) {
+		accent = QStringLiteral("#00b0ff"); glyph = QStringLiteral("SUPER CHAT");
+		desc = QStringLiteral("%1 donó %2").arg(A, unit.toHtmlEscaped());
+		if (!text.isEmpty())
+			desc += QStringLiteral(": %1").arg(text.toHtmlEscaped());
+	} else if (kind == QStringLiteral("sub")) {
+		accent = QStringLiteral("#38d39f"); glyph = QStringLiteral("SUB");
+		desc = QStringLiteral("%1 se suscribió%2").arg(A,
+			unit.isEmpty() ? QString() : QStringLiteral(" (%1)").arg(unit.toHtmlEscaped()));
+	} else if (kind == QStringLiteral("resub")) {
+		accent = QStringLiteral("#38d39f"); glyph = QStringLiteral("RESUB");
+		desc = QStringLiteral("%1 renovó su sub").arg(A);
+		if (amount > 0)
+			desc += QStringLiteral(" (%1 meses)").arg(amount);
+		if (!text.isEmpty())
+			desc += QStringLiteral(": %1").arg(text.toHtmlEscaped());
+	} else if (kind == QStringLiteral("subgift")) {
+		accent = QStringLiteral("#ff9500"); glyph = QStringLiteral("REGALO");
+		if (amount > 0)
+			desc = QStringLiteral("%1 regaló %2 subs").arg(A).arg(amount);
+		else if (!text.isEmpty())
+			desc = QStringLiteral("%1 regaló una sub a <b>%2</b>").arg(A, text.toHtmlEscaped());
+		else
+			desc = QStringLiteral("%1 regaló una sub").arg(A);
+	} else if (kind == QStringLiteral("gift")) {
+		accent = QStringLiteral("#fe2c55"); glyph = QStringLiteral("REGALO");
+		desc = QStringLiteral("%1 envió %2").arg(A, text.toHtmlEscaped());
+		if (amount > 0)
+			desc += QStringLiteral(" (%1 %2)").arg(amount).arg(unit.toHtmlEscaped());
+	} else if (kind == QStringLiteral("member")) {
+		accent = QStringLiteral("#0f9d58"); glyph = QStringLiteral("MIEMBRO");
+		desc = QStringLiteral("%1 %2").arg(A, text.toHtmlEscaped());
+	} else if (kind == QStringLiteral("raid")) {
+		accent = QStringLiteral("#9146ff"); glyph = QStringLiteral("RAID");
+		desc = QStringLiteral("%1 hizo raid con %2 viewers").arg(A).arg(amount);
+	} else if (kind == QStringLiteral("follow")) {
+		accent = QStringLiteral("#25f4ee"); glyph = QStringLiteral("SEGUIDOR");
+		desc = QStringLiteral("%1 empezó a seguir").arg(A);
+	} else {
+		glyph = kind.toUpper(); desc = A;
+	}
+
+	// Línea destacada: fondo de color tenue con borde de acento a la izquierda.
+	const QString html =
+		QStringLiteral(
+			"<table width='100%' cellspacing='0' cellpadding='4' "
+			"style='background:%1; margin:2px 0;'><tr>"
+			"<td style='border-left:3px solid %2;'>"
+			"%3 <span style='color:%2; font-weight:700; font-size:10px;'>%4</span> "
+			"<span style='color:#f6eeea;'>%5</span>"
+			"</td></tr></table>")
+			.arg(accent + QStringLiteral("22"), accent, icon, glyph, desc);
+
+	QScrollBar *sb = m_multiChat->verticalScrollBar();
+	bool atBottom = sb->value() >= sb->maximum() - 4;
+	QTextCursor cur(m_multiChat->document());
+	cur.movePosition(QTextCursor::End);
+	if (!m_multiChat->document()->isEmpty())
+		cur.insertBlock();
+	cur.insertHtml(html);
+	if (atBottom)
+		sb->setValue(sb->maximum());
+}
 
 void BetterChatDock::onStartLogin()
 {

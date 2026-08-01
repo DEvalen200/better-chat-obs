@@ -106,6 +106,9 @@ private:
 	void registerPlatformIcons();
 	void onChatMessage(const QString &platform, const QString &platformLabel,
 			   const QString &author, const QString &text, const QString &color);
+	void onChatEvent(const QString &platform, const QString &platformLabel,
+			 const QString &kind, const QString &actor, const QString &text,
+			 int amount, const QString &unit);
 	QLabel *m_actionStatus = nullptr;
 	// Herramientas de prueba (mensajes automáticos + limpiar).
 	QCheckBox *m_autoTestCheck = nullptr;

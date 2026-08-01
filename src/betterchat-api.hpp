@@ -69,6 +69,10 @@ signals:
 	// Multichat en vivo (SSE): un mensaje real de chat.
 	void chatMessage(const QString &platform, const QString &platformLabel,
 			 const QString &author, const QString &text, const QString &color);
+	// Evento destacado (bits/donacion, sub, regalo de sub, superchat, regalo TikTok...).
+	void chatEvent(const QString &platform, const QString &platformLabel,
+		       const QString &kind, const QString &actor, const QString &text,
+		       int amount, const QString &unit);
 	void chatStreamStateChanged(bool connected);
 
 private slots:

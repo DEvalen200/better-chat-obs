@@ -363,8 +363,20 @@ void BetterChatApi::processSseEvent(const QByteArray &block)
 	if (err.error != QJsonParseError::NoError || !doc.isObject())
 		return;
 	QJsonObject o = doc.object();
-	if (o.value(QStringLiteral("type")).toString() != QStringLiteral("chat"))
-		return; // solo mensajes de chat (ignorar status/clear/etc.)
+	const QString type = o.value(QStringLiteral("type")).toString();
+	if (type == QStringLiteral("event")) {
+		QJsonObject e = o.value(QStringLiteral("event")).toObject();
+		emit chatEvent(e.value(QStringLiteral("platform")).toString(),
+			       e.value(QStringLiteral("platformLabel")).toString(),
+			       e.value(QStringLiteral("kind")).toString(),
+			       e.value(QStringLiteral("actor")).toString(),
+			       e.value(QStringLiteral("text")).toString(),
+			       (int)e.value(QStringLiteral("amount")).toDouble(),
+			       e.value(QStringLiteral("unit")).toString());
+		return;
+	}
+	if (type != QStringLiteral("chat"))
+		return; // solo mensajes de chat y eventos (ignorar status/clear/etc.)
 	QJsonObject m = o.value(QStringLiteral("message")).toObject();
 	// El multichat muestra el chat REAL, no los mensajes de prueba.
 	if (m.value(QStringLiteral("test")).toBool() || m.value(QStringLiteral("synthetic")).toBool())
