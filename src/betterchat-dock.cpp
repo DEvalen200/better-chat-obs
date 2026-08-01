@@ -108,12 +108,16 @@ QComboBox QAbstractItemView {
 }
 QCheckBox { color: #f6eeea; font-size: 12px; spacing: 8px; }
 QFrame#sep { color: #3a2a25; max-height: 1px; }
+QWidget#navBar { background: #211815; border-radius: 9px; }
 QPushButton#navTab {
-	background: #211815; color: #b9a49c; border: 0; border-radius: 7px;
-	padding: 7px 6px; font-size: 12px; font-weight: 600;
+	background: transparent; color: #b9a49c; border: 0;
+	border-bottom: 2px solid transparent; border-radius: 0;
+	padding: 8px 4px; font-size: 12px; font-weight: 600;
 }
-QPushButton#navTab:hover { background: #2b1f1b; color: #f6eeea; }
-QPushButton#navTab:checked { background: #ff4d8d; color: #1a0c12; }
+QPushButton#navTab:hover { color: #f6eeea; }
+QPushButton#navTab:checked {
+	color: #ff4d8d; border-bottom: 2px solid #ff4d8d;
+}
 QScrollArea#scrollPage { background: transparent; }
 QScrollArea#scrollPage > QWidget > QWidget { background: transparent; }
 QSlider::groove:horizontal { height: 4px; background: #3a2a25; border-radius: 2px; }
@@ -253,9 +257,10 @@ void BetterChatDock::buildUi()
 	// Nav bar de pestañas (solo visible cuando hay sesión). Cada botón cambia
 	// m_tabStack. Se construye aquí pero se muestra desde onLoggedIn/onLoggedOut.
 	m_navBar = new QWidget(this);
+	m_navBar->setObjectName(QStringLiteral("navBar"));
 	auto *navLayout = new QHBoxLayout(m_navBar);
-	navLayout->setContentsMargins(0, 0, 0, 0);
-	navLayout->setSpacing(4);
+	navLayout->setContentsMargins(6, 2, 6, 2);
+	navLayout->setSpacing(2);
 	const QStringList tabNames = {QStringLiteral("Ajustes de chat"), QStringLiteral("Multichat"),
 				      QStringLiteral("Minijuegos/Apuestas")};
 	for (int i = 0; i < tabNames.size(); i++) {
