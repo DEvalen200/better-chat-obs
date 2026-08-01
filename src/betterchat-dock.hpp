@@ -24,6 +24,8 @@ class QComboBox;
 class QWidget;
 class QCheckBox;
 class QTimer;
+class QSlider;
+class QSpinBox;
 
 // Dock acoplable de BetterChatTV dentro de OBS. Dos vistas:
 //  - Deslogueado: botón para vincular la cuenta (device-flow).
@@ -84,7 +86,8 @@ private:
 	QWidget *m_settingsPanel = nullptr;
 	QComboBox *m_dirCombo = nullptr;
 	QComboBox *m_alignCombo = nullptr;
-	QComboBox *m_scaleCombo = nullptr;
+	QSlider *m_scaleSlider = nullptr;
+	QSpinBox *m_scaleSpin = nullptr;
 	bool m_updatingPanel = false; // evita realimentar señales al rellenar los combos
 	QPushButton *m_logoutBtn = nullptr;
 	QLabel *m_actionStatus = nullptr;

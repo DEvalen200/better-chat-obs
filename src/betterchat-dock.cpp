@@ -23,6 +23,8 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QListWidget>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QSlider>
+#include <QSpinBox>
 #include <QTimer>
 #include <QtMath>
 #include <QUrl>
@@ -96,6 +98,16 @@ QCheckBox::indicator {
 }
 QCheckBox::indicator:checked { background: #ff4d8d; border-color: #ff4d8d; }
 QFrame#sep { color: #3a2a25; max-height: 1px; }
+QSlider::groove:horizontal { height: 4px; background: #3a2a25; border-radius: 2px; }
+QSlider::sub-page:horizontal { background: #ff4d8d; border-radius: 2px; }
+QSlider::handle:horizontal {
+	width: 14px; height: 14px; margin: -6px 0; border-radius: 7px;
+	background: #ff4d8d; border: 2px solid #1a0c12;
+}
+QSpinBox {
+	background: #2b1f1b; color: #f6eeea; border: 1px solid #3a2a25;
+	border-radius: 6px; padding: 2px 4px; min-width: 54px;
+}
 )CSS";
 
 BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
@@ -294,14 +306,36 @@ void BetterChatDock::buildUi()
 		auto *scaleRow = new QHBoxLayout();
 		auto *scaleLabel = new QLabel(QStringLiteral("Escala"), m_settingsPanel);
 		scaleLabel->setObjectName(QStringLiteral("muted"));
-		scaleRow->addWidget(scaleLabel, 1);
-		m_scaleCombo = new QComboBox(m_settingsPanel);
-		const int scales[] = {50, 75, 90, 100, 125, 150, 175, 200, 250, 300};
-		for (int s : scales)
-			m_scaleCombo->addItem(QStringLiteral("%1%").arg(s), s);
-		connect(m_scaleCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-			&BetterChatDock::onChatSettingChanged);
-		scaleRow->addWidget(m_scaleCombo, 1);
+		scaleRow->addWidget(scaleLabel, 0);
+		m_scaleSlider = new QSlider(Qt::Horizontal, m_settingsPanel);
+		m_scaleSlider->setRange(30, 400); // coincide con el clamp del overlay
+		m_scaleSlider->setValue(100);
+		scaleRow->addWidget(m_scaleSlider, 1);
+		m_scaleSpin = new QSpinBox(m_settingsPanel);
+		m_scaleSpin->setRange(30, 400);
+		m_scaleSpin->setValue(100);
+		m_scaleSpin->setSuffix(QStringLiteral(" %"));
+		scaleRow->addWidget(m_scaleSpin, 0);
+		// Slider y campo van sincronizados. Mientras arrastras el slider solo se
+		// actualiza el número (sin spamear peticiones); se aplica al SOLTAR. El campo
+		// numérico aplica al confirmar su valor.
+		connect(m_scaleSlider, &QSlider::valueChanged, this, [this](int v) {
+			if (m_updatingPanel)
+				return;
+			m_updatingPanel = true;
+			m_scaleSpin->setValue(v);
+			m_updatingPanel = false;
+		});
+		connect(m_scaleSlider, &QSlider::sliderReleased, this,
+			[this]() { onChatSettingChanged(); });
+		connect(m_scaleSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int v) {
+			if (m_updatingPanel)
+				return;
+			m_updatingPanel = true;
+			m_scaleSlider->setValue(v);
+			m_updatingPanel = false;
+			onChatSettingChanged();
+		});
 		sv->addLayout(scaleRow);
 
 		m_settingsPanel->setVisible(false);
@@ -581,20 +615,16 @@ void BetterChatDock::updateSettingsPanel()
 	m_dirCombo->setCurrentIndex(dirIdx);
 	int alignIdx = align == QStringLiteral("center") ? 1 : align == QStringLiteral("right") ? 2 : 0;
 	m_alignCombo->setCurrentIndex(alignIdx);
-	// Escala: la URL guarda una fracción (1.0=100%); el combo usa enteros de %.
+	// Escala: la URL guarda una fracción (1.0=100%); slider/campo usan enteros de %.
 	int scalePct = 100;
 	if (!scale.isEmpty()) {
 		double f = scale.toDouble();
 		if (f > 0)
 			scalePct = (int)qRound(f * 100.0);
 	}
-	int scaleIdx = m_scaleCombo->findData(scalePct);
-	if (scaleIdx < 0) {
-		// Valor no listado: añadirlo temporalmente para reflejarlo.
-		m_scaleCombo->addItem(QStringLiteral("%1%").arg(scalePct), scalePct);
-		scaleIdx = m_scaleCombo->count() - 1;
-	}
-	m_scaleCombo->setCurrentIndex(scaleIdx);
+	scalePct = qBound(30, scalePct, 400);
+	m_scaleSlider->setValue(scalePct);
+	m_scaleSpin->setValue(scalePct);
 	m_updatingPanel = false;
 
 	m_settingsPanel->setVisible(true);
@@ -607,7 +637,7 @@ void BetterChatDock::onChatSettingChanged()
 	setSelectedChatParam(QStringLiteral("dir"), m_dirCombo->currentData().toString());
 	setSelectedChatParam(QStringLiteral("align"), m_alignCombo->currentData().toString());
 	// Escala como fracción con hasta 2 decimales (100 -> "1", 150 -> "1.5").
-	double f = m_scaleCombo->currentData().toInt() / 100.0;
+	double f = m_scaleSpin->value() / 100.0;
 	setSelectedChatParam(QStringLiteral("scale"),
 			     QString::number(f, 'g', 4));
 }
