@@ -691,13 +691,13 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 		bool ready;
 	};
 	const GameType types[] = {
-		{"manual", "Predicción",
+		{"manual", "🎲  Predicción",
 		 "Tú escribes la pregunta y las opciones; el chat apuesta y tú eliges quién gana.", true},
-		{"coinflip", "Cara o cruz", "Apuesta rápida a cara o cruz, resultado automático.", false},
-		{"roulette", "Ruleta", "Rueda de opciones con giro y ganador al azar.", false},
-		{"dice", "Dado", "Apuesta al número que saldrá.", false},
-		{"rps", "Piedra, papel o tijera", "Duelo del chat contra el streamer.", false},
-		{"race", "Carrera", "Apuesta por el corredor ganador.", false},
+		{"coinflip", "🎰  Cara o cruz", "Apuesta rápida a cara o cruz, resultado automático.", false},
+		{"roulette", "🎡  Ruleta", "Rueda de opciones con giro y ganador al azar.", false},
+		{"dice", "🎯  Dado", "Apuesta al número que saldrá.", false},
+		{"rps", "✊  Piedra, papel o tijera", "Duelo del chat contra el streamer.", false},
+		{"race", "🏁  Carrera", "Apuesta por el corredor ganador.", false},
 	};
 	for (const GameType &g : types) {
 		// Tarjeta = contenedor clicable con título + descripción que AJUSTAN el
