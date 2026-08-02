@@ -165,6 +165,10 @@ QLineEdit {
 }
 QLineEdit:focus { border-color: #ff4d8d; }
 QLabel#betOptLbl { color: #f6eeea; font-size: 12px; }
+QLabel#histItem {
+	color: #b9a49c; font-size: 11px; background: #241a16;
+	border: 1px solid #33251f; border-radius: 8px; padding: 8px 10px;
+}
 QFrame#gameCard {
 	background: #2b1f1b; border: 1px solid #3a2a25; border-radius: 10px;
 }
@@ -750,15 +754,18 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 	m_betTitle = new QLineEdit(m_betCreate);
 	m_betTitle->setPlaceholderText(QStringLiteral("¿Sobre qué se apuesta?"));
 	cv->addWidget(m_betTitle);
-	m_betOpt1 = new QLineEdit(m_betCreate);
-	m_betOpt1->setPlaceholderText(QStringLiteral("Opción 1"));
-	cv->addWidget(m_betOpt1);
-	m_betOpt2 = new QLineEdit(m_betCreate);
-	m_betOpt2->setPlaceholderText(QStringLiteral("Opción 2"));
-	cv->addWidget(m_betOpt2);
-	m_betOpt3 = new QLineEdit(m_betCreate);
-	m_betOpt3->setPlaceholderText(QStringLiteral("Opción 3 (opcional)"));
-	cv->addWidget(m_betOpt3);
+	// Campos de opción DINÁMICOS: arranca con 2, botón para añadir más (como la web).
+	m_betCreateForm = m_betCreate;
+	m_betOptInputs = new QVBoxLayout();
+	m_betOptInputs->setSpacing(6);
+	cv->addLayout(m_betOptInputs);
+	addBetOptionField();
+	addBetOptionField();
+	auto *addOptBtn = new QPushButton(QStringLiteral("+ Añadir opción"), m_betCreate);
+	addOptBtn->setObjectName(QStringLiteral("backBtn")); // estilo ghost, coherente
+	addOptBtn->setCursor(Qt::PointingHandCursor);
+	connect(addOptBtn, &QPushButton::clicked, this, [this]() { addBetOptionField(); });
+	cv->addWidget(addOptBtn, 0, Qt::AlignLeft);
 
 	auto *durRow = new QHBoxLayout();
 	auto *durLbl = new QLabel(QStringLiteral("Cierre automático:"), m_betCreate);
@@ -779,6 +786,20 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 	cv->addWidget(m_betCreateBtn);
 	m_betCreate->setVisible(false); // oculto hasta elegir un tipo (vista por pantallas)
 	parent->addWidget(m_betCreate);
+
+	// ---- Historial de predicciones anteriores (bajo el formulario, como la web) ----
+	m_betHistory = new QWidget(tab);
+	auto *hv = new QVBoxLayout(m_betHistory);
+	hv->setContentsMargins(0, 6, 0, 0);
+	hv->setSpacing(6);
+	auto *ht = new QLabel(QStringLiteral("Predicciones anteriores"), m_betHistory);
+	ht->setObjectName(QStringLiteral("ytPickTitle"));
+	hv->addWidget(ht);
+	m_betHistoryBox = new QVBoxLayout();
+	m_betHistoryBox->setSpacing(5);
+	hv->addLayout(m_betHistoryBox);
+	m_betHistory->setVisible(false);
+	parent->addWidget(m_betHistory);
 
 	// ---- Panel de la apuesta en curso ----
 	m_betActive = new QWidget(tab);
@@ -830,11 +851,15 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 			// Al crear/resolver/cancelar, olvidar el tipo elegido: si ya no hay
 			// apuesta activa se vuelve a la galería, no al formulario.
 			m_pickedType.clear();
-			// Limpiar el formulario para la próxima.
+			// Limpiar el formulario para la próxima: título y opciones (dejar 2 vacías).
 			if (m_betTitle) m_betTitle->clear();
-			if (m_betOpt1) m_betOpt1->clear();
-			if (m_betOpt2) m_betOpt2->clear();
-			if (m_betOpt3) m_betOpt3->clear();
+			for (QLineEdit *e : m_betOptFields)
+				e->deleteLater();
+			m_betOptFields.clear();
+			if (m_betOptInputs) {
+				addBetOptionField();
+				addBetOptionField();
+			}
 		}
 	});
 	m_betPollTimer = new QTimer(this);
@@ -856,7 +881,7 @@ void BetterChatDock::onCreateBetClicked()
 {
 	const QString title = m_betTitle->text().trimmed();
 	QStringList opts;
-	for (QLineEdit *e : {m_betOpt1, m_betOpt2, m_betOpt3}) {
+	for (QLineEdit *e : m_betOptFields) {
 		const QString v = e->text().trimmed();
 		if (!v.isEmpty())
 			opts << v;
@@ -871,6 +896,20 @@ void BetterChatDock::onCreateBetClicked()
 	}
 	m_betMsg->setText(QStringLiteral("Creando apuesta..."));
 	m_api->createBet(title, opts, m_betDuration->currentData().toInt());
+}
+
+// Añade un campo de opción al formulario (dinámico, como el "+ Añadir opción" web).
+void BetterChatDock::addBetOptionField(const QString &text)
+{
+	if (!m_betOptInputs || !m_betCreateForm)
+		return;
+	auto *field = new QLineEdit(m_betCreateForm);
+	field->setPlaceholderText(
+		QStringLiteral("Opción %1").arg(m_betOptFields.size() + 1));
+	if (!text.isEmpty())
+		field->setText(text);
+	m_betOptInputs->addWidget(field);
+	m_betOptFields.append(field);
 }
 
 // Refresca la UI con el estado de la apuesta activa (o el formulario si no hay).
@@ -936,6 +975,37 @@ void BetterChatDock::onControlState(const QByteArray &json)
 		m_activeBetStatus.clear();
 	}
 
+	// Reconstruir el historial de predicciones anteriores (bajo el formulario).
+	if (m_betHistoryBox) {
+		while (QLayoutItem *it = m_betHistoryBox->takeAt(0)) {
+			if (it->widget())
+				it->widget()->deleteLater();
+			delete it;
+		}
+		const QJsonArray hist = root.value(QStringLiteral("history")).toArray();
+		for (const QJsonValue &hv : hist) {
+			const QJsonObject h = hv.toObject();
+			const QString htitle = h.value(QStringLiteral("title")).toString();
+			const bool cancelled = h.value(QStringLiteral("status")).toString()
+					       == QStringLiteral("cancelled");
+			const qint64 hbote = static_cast<qint64>(h.value(QStringLiteral("bote")).toDouble());
+			const int hn = h.value(QStringLiteral("numWagers")).toInt();
+			const QString win = h.value(QStringLiteral("winningLabel")).toString();
+			const QString result = cancelled
+				? QStringLiteral("Cancelada")
+				: (win.isEmpty() ? QStringLiteral("—")
+						 : QStringLiteral("Ganó: %1").arg(win));
+			auto *item = new QLabel(
+				QStringLiteral("%1\n%2  ·  %3 fichas  ·  %4 apostantes")
+					.arg(htitle, result).arg(hbote).arg(hn),
+				m_betHistory);
+			item->setObjectName(QStringLiteral("histItem"));
+			item->setWordWrap(true);
+			m_betHistoryBox->addWidget(item);
+		}
+		m_lastHistoryCount = hist.size();
+	}
+
 	updateBetView();
 }
 
@@ -944,6 +1014,11 @@ void BetterChatDock::onControlState(const QByteArray &json)
 // o la galería de tipos por defecto.
 void BetterChatDock::updateBetView()
 {
+	// Helper local: el historial se muestra bajo el formulario de predicción.
+	auto showHistory = [this](bool inForm) {
+		if (m_betHistory)
+			m_betHistory->setVisible(inForm && m_lastHistoryCount > 0);
+	};
 	// Antes de recibir el primer estado del servidor, mostramos la galería (sin
 	// aviso de gate) para no dar un falso "requiere plus"... salvo que el usuario
 	// YA haya elegido un tipo: entonces mostramos su formulario igualmente.
@@ -952,6 +1027,7 @@ void BetterChatDock::updateBetView()
 		m_betGrid->setVisible(true);
 		m_betCreate->setVisible(false);
 		m_betActive->setVisible(false);
+		showHistory(false);
 		return;
 	}
 	// Si aún no hay datos pero eligió un tipo, asumimos que puede usarlo (el
@@ -961,6 +1037,7 @@ void BetterChatDock::updateBetView()
 		m_betGrid->setVisible(m_pickedType.isEmpty());
 		m_betCreate->setVisible(m_pickedType == QStringLiteral("manual"));
 		m_betActive->setVisible(false);
+		showHistory(m_pickedType == QStringLiteral("manual"));
 		return;
 	}
 	const bool plus = m_lastIsPlus;
@@ -969,6 +1046,7 @@ void BetterChatDock::updateBetView()
 		m_betGrid->setVisible(false);
 		m_betCreate->setVisible(false);
 		m_betActive->setVisible(false);
+		showHistory(false);
 		return;
 	}
 	if (m_lastHasBet) {
@@ -976,19 +1054,22 @@ void BetterChatDock::updateBetView()
 		m_betGrid->setVisible(false);
 		m_betCreate->setVisible(false);
 		m_betActive->setVisible(true);
+		showHistory(false);
 		return;
 	}
 	if (m_pickedType == QStringLiteral("manual")) {
-		// Elegiste Predicción: mostrar su formulario.
+		// Elegiste Predicción: mostrar su formulario + historial debajo.
 		m_betGrid->setVisible(false);
 		m_betCreate->setVisible(true);
 		m_betActive->setVisible(false);
+		showHistory(true);
 		return;
 	}
 	// Por defecto: la galería de tipos.
 	m_betGrid->setVisible(true);
 	m_betCreate->setVisible(false);
 	m_betActive->setVisible(false);
+	showHistory(false);
 }
 
 // Cambia la pestaña activa del dock (nav bar) y marca el botón correspondiente.

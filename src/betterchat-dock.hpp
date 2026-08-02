@@ -136,12 +136,16 @@ private:
 	QWidget *m_betActive = nullptr;    // panel de la apuesta en curso
 	QLabel *m_betGateMsg = nullptr;    // aviso para no-plus
 	QLineEdit *m_betTitle = nullptr;   // título de la apuesta
-	QLineEdit *m_betOpt1 = nullptr;    // opción 1
-	QLineEdit *m_betOpt2 = nullptr;    // opción 2
-	QLineEdit *m_betOpt3 = nullptr;    // opción 3 (opcional)
+	QVBoxLayout *m_betOptInputs = nullptr; // contenedor de los campos de opción (dinámico)
+	QList<QLineEdit *> m_betOptFields;     // campos de opción actuales
+	QWidget *m_betCreateForm = nullptr;    // widget padre de los campos (para nuevos hijos)
+	void addBetOptionField(const QString &text = QString()); // añade un campo de opción
 	QComboBox *m_betDuration = nullptr;// duración (cierre automático)
 	QPushButton *m_betCreateBtn = nullptr;
 	QLabel *m_betMsg = nullptr;        // mensajes de resultado
+	QWidget *m_betHistory = nullptr;   // tarjeta de historial de predicciones
+	QVBoxLayout *m_betHistoryBox = nullptr; // filas del historial
+	int m_lastHistoryCount = 0;        // nº de predicciones en el historial
 	QLabel *m_betActiveTitle = nullptr;// título de la apuesta activa
 	QLabel *m_betActiveState = nullptr;// estado (abierta/bloqueada) + bote
 	QVBoxLayout *m_betOptsBox = nullptr;// filas de opciones con barras
