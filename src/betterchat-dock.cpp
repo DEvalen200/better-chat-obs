@@ -165,15 +165,17 @@ QLineEdit {
 }
 QLineEdit:focus { border-color: #ff4d8d; }
 QLabel#betOptLbl { color: #f6eeea; font-size: 12px; }
-QPushButton#gameCard {
-	background: #2b1f1b; color: #f6eeea; border: 1px solid #3a2a25;
-	border-radius: 10px; padding: 12px 14px; font-size: 12px; text-align: left;
+QFrame#gameCard {
+	background: #2b1f1b; border: 1px solid #3a2a25; border-radius: 10px;
 }
-QPushButton#gameCard:hover { border-color: #ff4d8d; background: #34251f; }
-QPushButton#gameCardSoon {
-	background: #241a16; color: #8a7168; border: 1px solid #33251f;
-	border-radius: 10px; padding: 12px 14px; font-size: 12px; text-align: left;
+QFrame#gameCard:hover { border-color: #ff4d8d; background: #34251f; }
+QFrame#gameCardSoon {
+	background: #241a16; border: 1px solid #33251f; border-radius: 10px;
 }
+QLabel#gameCardName { color: #f6eeea; font-size: 13px; font-weight: 700; }
+QFrame#gameCardSoon QLabel#gameCardName { color: #8a7168; }
+QLabel#gameCardDesc { color: #b9a49c; font-size: 11px; }
+QFrame#gameCardSoon QLabel#gameCardDesc { color: #6f5a51; }
 QPushButton#backBtn {
 	background: transparent; color: #b9a49c; border: 1px solid #3a2a25;
 	border-radius: 6px; padding: 4px 10px; font-size: 12px;
@@ -689,30 +691,39 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 		bool ready;
 	};
 	const GameType types[] = {
-		{"manual", "🎲  Predicción",
+		{"manual", "Predicción",
 		 "Tú escribes la pregunta y las opciones; el chat apuesta y tú eliges quién gana.", true},
-		{"coinflip", "🪙  Cara o cruz", "Apuesta rápida a cara o cruz, resultado automático.", false},
-		{"roulette", "🎡  Ruleta", "Rueda de opciones con giro y ganador al azar.", false},
-		{"dice", "🎯  Dado", "Apuesta al número que saldrá.", false},
-		{"rps", "✊  Piedra, papel o tijera", "Duelo del chat contra el streamer.", false},
-		{"race", "🏁  Carrera", "Apuesta por el corredor ganador.", false},
+		{"coinflip", "Cara o cruz", "Apuesta rápida a cara o cruz, resultado automático.", false},
+		{"roulette", "Ruleta", "Rueda de opciones con giro y ganador al azar.", false},
+		{"dice", "Dado", "Apuesta al número que saldrá.", false},
+		{"rps", "Piedra, papel o tijera", "Duelo del chat contra el streamer.", false},
+		{"race", "Carrera", "Apuesta por el corredor ganador.", false},
 	};
 	for (const GameType &g : types) {
-		auto *card = new QPushButton(m_betGrid);
+		// Tarjeta = contenedor clicable con título + descripción que AJUSTAN el
+		// texto (un QPushButton no envuelve ni crece en alto: se cortaba).
+		auto *card = new QFrame(m_betGrid);
 		card->setObjectName(g.ready ? QStringLiteral("gameCard") : QStringLiteral("gameCardSoon"));
+		card->setAttribute(Qt::WA_StyledBackground, true); // que el QSS pinte fondo/borde
 		card->setCursor(g.ready ? Qt::PointingHandCursor : Qt::ArrowCursor);
-		card->setEnabled(g.ready);
-		const QString tail = g.ready ? QString() : QStringLiteral("\nPróximamente");
-		card->setText(QStringLiteral("%1\n%2%3")
-				      .arg(QString::fromUtf8(g.name),
-					   QString::fromUtf8(g.desc), tail));
+		auto *cardV = new QVBoxLayout(card);
+		cardV->setContentsMargins(12, 10, 12, 10);
+		cardV->setSpacing(3);
+		auto *nameLbl = new QLabel(QString::fromUtf8(g.name), card);
+		nameLbl->setObjectName(QStringLiteral("gameCardName"));
+		cardV->addWidget(nameLbl);
+		auto *descLbl = new QLabel(
+			g.ready ? QString::fromUtf8(g.desc)
+				: QStringLiteral("%1  ·  Próximamente").arg(QString::fromUtf8(g.desc)),
+			card);
+		descLbl->setObjectName(QStringLiteral("gameCardDesc"));
+		descLbl->setWordWrap(true);
+		cardV->addWidget(descLbl);
 		if (g.ready) {
 			const QString id = QString::fromUtf8(g.id);
-			connect(card, &QPushButton::clicked, this, [this, id]() {
-				m_pickedType = id;
-				m_betMsg->clear();
-				updateBetView();
-			});
+			// Capturamos el clic en toda la tarjeta con un event filter.
+			card->installEventFilter(this);
+			card->setProperty("gameType", id);
 		}
 		gv->addWidget(card);
 	}
@@ -1182,6 +1193,20 @@ bool BetterChatDock::eventFilter(QObject *obj, QEvent *ev)
 {
 	if (obj == m_multiChat && (ev->type() == QEvent::Resize || ev->type() == QEvent::Show))
 		positionFsButton();
+	// Clic en una tarjeta de la galería de minijuegos -> elegir ese tipo.
+	if (ev->type() == QEvent::MouseButtonRelease) {
+		QWidget *w = qobject_cast<QWidget *>(obj);
+		if (w) {
+			const QVariant gt = w->property("gameType");
+			if (gt.isValid()) {
+				m_pickedType = gt.toString();
+				if (m_betMsg)
+					m_betMsg->clear();
+				updateBetView();
+				return true;
+			}
+		}
+	}
 	return QWidget::eventFilter(obj, ev);
 }
 
