@@ -926,11 +926,21 @@ void BetterChatDock::onControlState(const QByteArray &json)
 void BetterChatDock::updateBetView()
 {
 	// Antes de recibir el primer estado del servidor, mostramos la galería (sin
-	// aviso de gate) para no dar un falso "requiere plus".
-	if (!m_betDataReady) {
+	// aviso de gate) para no dar un falso "requiere plus"... salvo que el usuario
+	// YA haya elegido un tipo: entonces mostramos su formulario igualmente.
+	if (!m_betDataReady && m_pickedType.isEmpty()) {
 		m_betGateMsg->setVisible(false);
 		m_betGrid->setVisible(true);
 		m_betCreate->setVisible(false);
+		m_betActive->setVisible(false);
+		return;
+	}
+	// Si aún no hay datos pero eligió un tipo, asumimos que puede usarlo (el
+	// backend rechazará con plus_required si no es plus, y lo reflejará el poll).
+	if (!m_betDataReady) {
+		m_betGateMsg->setVisible(false);
+		m_betGrid->setVisible(m_pickedType.isEmpty());
+		m_betCreate->setVisible(m_pickedType == QStringLiteral("manual"));
 		m_betActive->setVisible(false);
 		return;
 	}
