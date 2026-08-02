@@ -126,6 +126,11 @@ private:
 	void onControlState(const QByteArray &json);   // refresca el estado de la apuesta
 	void onCreateBetClicked();                      // crea la apuesta desde el formulario
 	void refreshBets();                             // pide /api/control (poll)
+	void updateBetView();                           // decide qué zona mostrar (grid/crear/activo)
+	QWidget *m_betGrid = nullptr;      // galería de tipos de minijuego/apuesta
+	QString m_pickedType;              // tipo elegido en el grid ("" | "manual")
+	bool m_lastIsPlus = false;         // último estado de control recibido
+	bool m_lastHasBet = false;
 	QWidget *m_betCreate = nullptr;    // formulario de nueva apuesta
 	QWidget *m_betActive = nullptr;    // panel de la apuesta en curso
 	QLabel *m_betGateMsg = nullptr;    // aviso para no-plus
