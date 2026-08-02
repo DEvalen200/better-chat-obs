@@ -25,6 +25,7 @@ class QListWidget;
 class QTextEdit;
 class QVBoxLayout;
 class QComboBox;
+class QLineEdit;
 class QWidget;
 class QCheckBox;
 class QTimer;
@@ -120,6 +121,28 @@ private:
 	void registerPlatformIcons();
 	void buildPlatformBar(QVBoxLayout *parent);   // crea la fila de chips
 	void buildYouTubePicker(QVBoxLayout *parent); // zona de elegir directo YT (al pie)
+	// --- Pestaña Minijuegos: apuestas con fichas ---
+	void buildBetsTab(QVBoxLayout *parent, QWidget *tab);
+	void onControlState(const QByteArray &json);   // refresca el estado de la apuesta
+	void onCreateBetClicked();                      // crea la apuesta desde el formulario
+	void refreshBets();                             // pide /api/control (poll)
+	QWidget *m_betCreate = nullptr;    // formulario de nueva apuesta
+	QWidget *m_betActive = nullptr;    // panel de la apuesta en curso
+	QLabel *m_betGateMsg = nullptr;    // aviso para no-plus
+	QLineEdit *m_betTitle = nullptr;   // título de la apuesta
+	QLineEdit *m_betOpt1 = nullptr;    // opción 1
+	QLineEdit *m_betOpt2 = nullptr;    // opción 2
+	QLineEdit *m_betOpt3 = nullptr;    // opción 3 (opcional)
+	QComboBox *m_betDuration = nullptr;// duración (cierre automático)
+	QPushButton *m_betCreateBtn = nullptr;
+	QLabel *m_betMsg = nullptr;        // mensajes de resultado
+	QLabel *m_betActiveTitle = nullptr;// título de la apuesta activa
+	QLabel *m_betActiveState = nullptr;// estado (abierta/bloqueada) + bote
+	QVBoxLayout *m_betOptsBox = nullptr;// filas de opciones con barras
+	QPushButton *m_betLockBtn = nullptr;
+	QPushButton *m_betCancelBtn = nullptr;
+	QTimer *m_betPollTimer = nullptr;  // refresco periódico del estado
+	QString m_activeBetStatus;         // "", "open", "locked"
 	// --- Modo pantalla completa del multichat ---
 	QPushButton *m_fsBtn = nullptr;   // botón flotante en la esquina del chat
 	QWidget *m_ytZone = nullptr;      // contenedor de toda la zona YT (para ocultar)

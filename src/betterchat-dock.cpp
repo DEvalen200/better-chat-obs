@@ -38,6 +38,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QHash>
 #include <QScrollArea>
 #include <QComboBox>
+#include <QLineEdit>
 #include <QCheckBox>
 #include <QSlider>
 #include <QSpinBox>
@@ -158,6 +159,12 @@ QPushButton#ytPickBtn:hover { background: #ff3333; }
 QLabel#ytSearching { color: #ffb020; font-size: 11px; font-style: italic; }
 QLabel#ytHelp { color: #b9a49c; font-size: 11px; }
 QLabel#verLabel { color: #6b5a53; font-size: 10px; padding: 2px 2px 0 0; }
+QLineEdit {
+	background: #2b1f1b; color: #f6eeea; border: 1px solid #3a2a25;
+	border-radius: 6px; padding: 6px 8px; font-size: 12px;
+}
+QLineEdit:focus { border-color: #ff4d8d; }
+QLabel#betOptLbl { color: #f6eeea; font-size: 12px; }
 QPushButton#fsBtn {
 	background: rgba(33,24,21,0.82); border: 1px solid #3a2a25; border-radius: 6px;
 }
@@ -614,21 +621,233 @@ void BetterChatDock::buildUi()
 			m_tabStack->addWidget(tab); // índice 1
 		}
 
-		// ===== Pestaña 2: Minijuegos/Apuestas (placeholder por ahora) =====
+		// ===== Pestaña 2: Minijuegos/Apuestas =====
 		{
 			auto *tab = new QWidget(m_tabStack);
 			auto *tv = new QVBoxLayout(tab);
 			tv->setContentsMargins(0, 0, 0, 0);
-			auto *lbl = new QLabel(QStringLiteral("Minijuegos y apuestas: próximamente."), tab);
-			lbl->setObjectName(QStringLiteral("muted"));
-			lbl->setWordWrap(true);
-			tv->addWidget(lbl);
-			tv->addStretch(1);
+			tv->setSpacing(8);
+			buildBetsTab(tv, tab);
 			m_tabStack->addWidget(tab); // índice 2
 		}
 
 		m_stack->addWidget(page);
 	}
+}
+
+// ==== Pestaña Minijuegos: apuestas con fichas ====
+
+// Construye la pestaña de apuestas: un formulario para crear y un panel para la
+// apuesta en curso (se alternan según haya o no apuesta activa). Refresca por poll.
+void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
+{
+	// Aviso para quien no tiene BetterChatTV+ (las apuestas son premium).
+	m_betGateMsg = new QLabel(
+		QStringLiteral("Las apuestas con fichas son parte de BetterChatTV+. "
+			       "Hazte plus para crear apuestas en tu directo."),
+		tab);
+	m_betGateMsg->setObjectName(QStringLiteral("ytHelp"));
+	m_betGateMsg->setWordWrap(true);
+	m_betGateMsg->setVisible(false);
+	parent->addWidget(m_betGateMsg);
+
+	// ---- Formulario para crear una apuesta ----
+	m_betCreate = new QWidget(tab);
+	auto *cv = new QVBoxLayout(m_betCreate);
+	cv->setContentsMargins(0, 0, 0, 0);
+	cv->setSpacing(6);
+	auto *ct = new QLabel(QStringLiteral("Nueva apuesta"), m_betCreate);
+	ct->setObjectName(QStringLiteral("ytPickTitle"));
+	cv->addWidget(ct);
+	m_betTitle = new QLineEdit(m_betCreate);
+	m_betTitle->setPlaceholderText(QStringLiteral("¿Sobre qué se apuesta?"));
+	cv->addWidget(m_betTitle);
+	m_betOpt1 = new QLineEdit(m_betCreate);
+	m_betOpt1->setPlaceholderText(QStringLiteral("Opción 1"));
+	cv->addWidget(m_betOpt1);
+	m_betOpt2 = new QLineEdit(m_betCreate);
+	m_betOpt2->setPlaceholderText(QStringLiteral("Opción 2"));
+	cv->addWidget(m_betOpt2);
+	m_betOpt3 = new QLineEdit(m_betCreate);
+	m_betOpt3->setPlaceholderText(QStringLiteral("Opción 3 (opcional)"));
+	cv->addWidget(m_betOpt3);
+
+	auto *durRow = new QHBoxLayout();
+	auto *durLbl = new QLabel(QStringLiteral("Cierre automático:"), m_betCreate);
+	durLbl->setObjectName(QStringLiteral("muted"));
+	durRow->addWidget(durLbl, 0);
+	m_betDuration = new QComboBox(m_betCreate);
+	m_betDuration->addItem(QStringLiteral("Sin límite"), 0);
+	m_betDuration->addItem(QStringLiteral("1 min"), 60);
+	m_betDuration->addItem(QStringLiteral("2 min"), 120);
+	m_betDuration->addItem(QStringLiteral("5 min"), 300);
+	durRow->addWidget(m_betDuration, 1);
+	cv->addLayout(durRow);
+
+	m_betCreateBtn = new QPushButton(QStringLiteral("Crear apuesta"), m_betCreate);
+	m_betCreateBtn->setObjectName(QStringLiteral("primary"));
+	m_betCreateBtn->setCursor(Qt::PointingHandCursor);
+	connect(m_betCreateBtn, &QPushButton::clicked, this, &BetterChatDock::onCreateBetClicked);
+	cv->addWidget(m_betCreateBtn);
+	parent->addWidget(m_betCreate);
+
+	// ---- Panel de la apuesta en curso ----
+	m_betActive = new QWidget(tab);
+	auto *av = new QVBoxLayout(m_betActive);
+	av->setContentsMargins(0, 0, 0, 0);
+	av->setSpacing(6);
+	m_betActiveTitle = new QLabel(QString(), m_betActive);
+	m_betActiveTitle->setObjectName(QStringLiteral("ytPickTitle"));
+	m_betActiveTitle->setWordWrap(true);
+	av->addWidget(m_betActiveTitle);
+	m_betActiveState = new QLabel(QString(), m_betActive);
+	m_betActiveState->setObjectName(QStringLiteral("muted"));
+	av->addWidget(m_betActiveState);
+	m_betOptsBox = new QVBoxLayout();
+	m_betOptsBox->setSpacing(5);
+	av->addLayout(m_betOptsBox);
+
+	auto *actRow = new QHBoxLayout();
+	m_betLockBtn = new QPushButton(QStringLiteral("Cerrar apuestas"), m_betActive);
+	m_betLockBtn->setObjectName(QStringLiteral("accent"));
+	m_betLockBtn->setCursor(Qt::PointingHandCursor);
+	m_betLockBtn->setToolTip(QStringLiteral("Nadie más podrá apostar; luego marca el ganador"));
+	connect(m_betLockBtn, &QPushButton::clicked, this, [this]() { m_api->betAction(QStringLiteral("lock")); });
+	actRow->addWidget(m_betLockBtn, 1);
+	m_betCancelBtn = new QPushButton(QStringLiteral("Cancelar"), m_betActive);
+	m_betCancelBtn->setObjectName(QStringLiteral("danger"));
+	m_betCancelBtn->setCursor(Qt::PointingHandCursor);
+	m_betCancelBtn->setToolTip(QStringLiteral("Anula la apuesta y devuelve las fichas"));
+	connect(m_betCancelBtn, &QPushButton::clicked, this, [this]() { m_api->betAction(QStringLiteral("cancel")); });
+	actRow->addWidget(m_betCancelBtn, 0);
+	av->addLayout(actRow);
+	m_betActive->setVisible(false);
+	parent->addWidget(m_betActive);
+
+	m_betMsg = new QLabel(QString(), tab);
+	m_betMsg->setObjectName(QStringLiteral("muted"));
+	m_betMsg->setWordWrap(true);
+	parent->addWidget(m_betMsg);
+	parent->addStretch(1);
+
+	// Señales del API + poll periódico del estado (cada 4s mientras el dock está vivo).
+	connect(m_api, &BetterChatApi::controlState, this, &BetterChatDock::onControlState);
+	connect(m_api, &BetterChatApi::betActionResult, this, [this](bool ok, const QString &msg) {
+		if (!msg.isEmpty())
+			m_betMsg->setText(msg);
+		else if (ok)
+			m_betMsg->clear();
+	});
+	m_betPollTimer = new QTimer(this);
+	m_betPollTimer->setInterval(4000);
+	connect(m_betPollTimer, &QTimer::timeout, this, &BetterChatDock::refreshBets);
+}
+
+// Pide el estado del panel de control (apuesta activa) al servidor.
+void BetterChatDock::refreshBets()
+{
+	m_api->fetchControl();
+}
+
+// Crea la apuesta a partir del formulario, validando los campos mínimos.
+void BetterChatDock::onCreateBetClicked()
+{
+	const QString title = m_betTitle->text().trimmed();
+	QStringList opts;
+	for (QLineEdit *e : {m_betOpt1, m_betOpt2, m_betOpt3}) {
+		const QString v = e->text().trimmed();
+		if (!v.isEmpty())
+			opts << v;
+	}
+	if (title.isEmpty()) {
+		m_betMsg->setText(QStringLiteral("Escribe el título de la apuesta."));
+		return;
+	}
+	if (opts.size() < 2) {
+		m_betMsg->setText(QStringLiteral("Necesitas al menos dos opciones."));
+		return;
+	}
+	m_betMsg->setText(QStringLiteral("Creando apuesta..."));
+	m_api->createBet(title, opts, m_betDuration->currentData().toInt());
+}
+
+// Refresca la UI con el estado de la apuesta activa (o el formulario si no hay).
+void BetterChatDock::onControlState(const QByteArray &json)
+{
+	const QJsonObject root = QJsonDocument::fromJson(json).object();
+	const bool isPlus = root.value(QStringLiteral("isPlus")).toBool();
+	const QJsonValue betVal = root.value(QStringLiteral("bet"));
+	const bool hasBet = betVal.isObject();
+
+	// Gating: sin plus, solo el aviso.
+	m_betGateMsg->setVisible(!isPlus);
+	if (!isPlus) {
+		if (m_betCreate) m_betCreate->setVisible(false);
+		if (m_betActive) m_betActive->setVisible(false);
+		return;
+	}
+
+	if (!hasBet) {
+		// No hay apuesta: mostrar el formulario.
+		m_activeBetStatus.clear();
+		m_betCreate->setVisible(true);
+		m_betActive->setVisible(false);
+		return;
+	}
+
+	// Hay apuesta activa: mostrar el panel de estado.
+	const QJsonObject bet = betVal.toObject();
+	const QString status = bet.value(QStringLiteral("status")).toString();
+	m_activeBetStatus = status;
+	m_betCreate->setVisible(false);
+	m_betActive->setVisible(true);
+
+	m_betActiveTitle->setText(bet.value(QStringLiteral("title")).toString());
+	const qint64 bote = static_cast<qint64>(bet.value(QStringLiteral("bote")).toDouble());
+	const QString estado = (status == QStringLiteral("locked"))
+				       ? QStringLiteral("Cerrada (elige ganador)")
+				       : QStringLiteral("Abierta (la gente apuesta)");
+	m_betActiveState->setText(QStringLiteral("%1  ·  Bote: %2 fichas").arg(estado).arg(bote));
+
+	// Reconstruir las filas de opciones con su barra de reparto.
+	while (QLayoutItem *it = m_betOptsBox->takeAt(0)) {
+		if (it->widget())
+			it->widget()->deleteLater();
+		delete it;
+	}
+	const QJsonArray options = bet.value(QStringLiteral("options")).toArray();
+	for (const QJsonValue &ov : options) {
+		const QJsonObject o = ov.toObject();
+		const QString oid = o.value(QStringLiteral("id")).toString();
+		const QString label = o.value(QStringLiteral("label")).toString();
+		const qint64 stake = static_cast<qint64>(o.value(QStringLiteral("totalStake")).toDouble());
+		const int n = o.value(QStringLiteral("numWagers")).toInt();
+		const int pct = bote > 0 ? int(stake * 100 / bote) : 0;
+
+		auto *row = new QWidget(m_betActive);
+		auto *rh = new QHBoxLayout(row);
+		rh->setContentsMargins(0, 0, 0, 0);
+		rh->setSpacing(6);
+		auto *lbl = new QLabel(QStringLiteral("%1  ·  %2 fichas (%3%, %4)")
+					       .arg(label).arg(stake).arg(pct).arg(n),
+				       row);
+		lbl->setObjectName(QStringLiteral("betOptLbl"));
+		lbl->setWordWrap(true);
+		rh->addWidget(lbl, 1);
+		// Solo cuando está cerrada se puede marcar ganador.
+		if (status == QStringLiteral("locked")) {
+			auto *win = new QPushButton(QStringLiteral("🏆 Marcar ganador"), row);
+			win->setObjectName(QStringLiteral("primary"));
+			win->setCursor(Qt::PointingHandCursor);
+			connect(win, &QPushButton::clicked, this,
+				[this, oid]() { m_api->betAction(QStringLiteral("resolve"), oid); });
+			rh->addWidget(win, 0);
+		}
+		m_betOptsBox->addWidget(row);
+	}
+
+	// El botón de cerrar solo tiene sentido mientras está abierta.
+	m_betLockBtn->setVisible(status == QStringLiteral("open"));
 }
 
 // Cambia la pestaña activa del dock (nav bar) y marca el botón correspondiente.
@@ -1199,6 +1418,10 @@ void BetterChatDock::onLoggedIn()
 		m_navBar->setVisible(true);
 	m_api->startStatusPolling();
 	refreshChatList();
+	// Arrancar el poll de apuestas y pedir el estado ya.
+	if (m_betPollTimer)
+		m_betPollTimer->start();
+	refreshBets();
 }
 
 void BetterChatDock::onLoggedOut()
@@ -1213,6 +1436,8 @@ void BetterChatDock::onLoggedOut()
 		m_navBar->setVisible(false);
 	if (m_tabStack)
 		selectTab(0); // volver a la primera pestaña y parar el stream
+	if (m_betPollTimer)
+		m_betPollTimer->stop();
 	m_loginBtn->setEnabled(true);
 	m_loginStatus->clear();
 	m_pairInfo->setVisible(false);

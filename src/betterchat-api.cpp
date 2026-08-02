@@ -13,6 +13,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QNetworkReply>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QSettings>
 #include <QDesktopServices>
 #include <QUrl>
@@ -332,6 +333,80 @@ void BetterChatApi::setStreaming(bool active)
 	QNetworkReply *reply =
 		m_net.post(apiRequest(QStringLiteral("/api/plugin/streaming"), true), payload);
 	connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
+}
+
+void BetterChatApi::fetchControl()
+{
+	if (m_token.isEmpty())
+		return;
+	QNetworkReply *reply = m_net.get(apiRequest(QStringLiteral("/api/control"), true));
+	connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+		reply->deleteLater();
+		int code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		if (reply->error() != QNetworkReply::NoError || code >= 400)
+			return; // silencioso: es un poll periódico
+		emit controlState(reply->readAll());
+	});
+}
+
+void BetterChatApi::createBet(const QString &title, const QStringList &options, int durationSec)
+{
+	if (m_token.isEmpty())
+		return;
+	QJsonArray opts;
+	for (const QString &label : options) {
+		QJsonObject o;
+		o.insert(QStringLiteral("label"), label);
+		opts.append(o);
+	}
+	QJsonObject body;
+	body.insert(QStringLiteral("title"), title);
+	body.insert(QStringLiteral("options"), opts);
+	if (durationSec > 0)
+		body.insert(QStringLiteral("durationSec"), durationSec);
+	QByteArray payload = QJsonDocument(body).toJson(QJsonDocument::Compact);
+	QNetworkReply *reply =
+		m_net.post(apiRequest(QStringLiteral("/api/control/bet"), true), payload);
+	connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+		reply->deleteLater();
+		int code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		if (reply->error() != QNetworkReply::NoError || code >= 400) {
+			QString msg = tr("No se pudo crear la apuesta.");
+			const QJsonObject obj = QJsonDocument::fromJson(reply->readAll()).object();
+			if (obj.contains(QStringLiteral("message")))
+				msg = obj.value(QStringLiteral("message")).toString();
+			emit betActionResult(false, msg);
+			return;
+		}
+		emit betActionResult(true, tr("Apuesta creada."));
+		fetchControl();
+	});
+}
+
+void BetterChatApi::betAction(const QString &action, const QString &winningOption)
+{
+	if (m_token.isEmpty())
+		return;
+	QJsonObject body;
+	if (action == QStringLiteral("resolve"))
+		body.insert(QStringLiteral("winningOption"), winningOption);
+	QByteArray payload = QJsonDocument(body).toJson(QJsonDocument::Compact);
+	QNetworkReply *reply = m_net.post(
+		apiRequest(QStringLiteral("/api/control/bet/") + action, true), payload);
+	connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+		reply->deleteLater();
+		int code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		if (reply->error() != QNetworkReply::NoError || code >= 400) {
+			QString msg = tr("No se pudo completar la acción.");
+			const QJsonObject obj = QJsonDocument::fromJson(reply->readAll()).object();
+			if (obj.contains(QStringLiteral("message")))
+				msg = obj.value(QStringLiteral("message")).toString();
+			emit betActionResult(false, msg);
+			return;
+		}
+		emit betActionResult(true, QString());
+		fetchControl();
+	});
 }
 
 void BetterChatApi::logout()

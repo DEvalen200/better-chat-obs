@@ -68,6 +68,16 @@ public:
 	// Informa al servidor de si OBS está transmitiendo (dispara la auto-conexión
 	// de YouTube sin esperar a que Twitch/Kick reporten el en vivo).
 	void setStreaming(bool active);
+	// --- Apuestas (pestaña Minijuegos) ---
+	// Pide el estado del panel de control (incluye la apuesta activa). Emite
+	// controlState(QByteArray json) con el objeto completo de /api/control.
+	void fetchControl();
+	// Crea una apuesta. options = lista de etiquetas. durationSec 0 = sin cierre auto.
+	// Emite betActionResult(ok, message) y refresca via controlState.
+	void createBet(const QString &title, const QStringList &options, int durationSec);
+	// Acción sobre la apuesta activa: "lock" | "resolve" | "cancel".
+	// Para resolve, winningOption = id de la opción ganadora. Emite betActionResult.
+	void betAction(const QString &action, const QString &winningOption = QString());
 
 signals:
 	// Emitido con el user_code y la verify_url para mostrarlos en el dock.
@@ -93,6 +103,10 @@ signals:
 	void youtubeLiveError(const QString &message);
 	// Resultado de fijar la fuente de YouTube.
 	void youtubeSourceSet(bool ok, const QString &message);
+	// Estado del panel de control (JSON de /api/control): apuesta activa, isPlus, etc.
+	void controlState(const QByteArray &json);
+	// Resultado de una acción de apuesta (crear/lock/resolve/cancel).
+	void betActionResult(bool ok, const QString &message);
 	void chatStreamStateChanged(bool connected);
 
 private slots:
