@@ -823,6 +823,9 @@ void BetterChatDock::toggleChatFullscreen()
 				       : QStringLiteral("Ver el chat a pantalla completa"));
 	}
 	positionFsButton();
+	// El layout recalcula el tamaño del chat DESPUÉS de este ciclo; reposicionar
+	// el botón en el siguiente tick para que no quede descolocado al restaurar.
+	QTimer::singleShot(0, this, [this]() { positionFsButton(); });
 }
 
 // Reposiciona el botón de fullscreen cuando el área del chat cambia de tamaño.
