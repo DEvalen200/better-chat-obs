@@ -48,6 +48,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QDesktopServices>
 #include <QIcon>
 #include <QPixmap>
+#include <QEvent>
 #include <QSize>
 #include <QPainter>
 #include <QPen>
@@ -157,6 +158,10 @@ QPushButton#ytPickBtn:hover { background: #ff3333; }
 QLabel#ytSearching { color: #ffb020; font-size: 11px; font-style: italic; }
 QLabel#ytHelp { color: #b9a49c; font-size: 11px; }
 QLabel#verLabel { color: #6b5a53; font-size: 10px; padding: 2px 2px 0 0; }
+QPushButton#fsBtn {
+	background: rgba(33,24,21,0.82); border: 1px solid #3a2a25; border-radius: 6px;
+}
+QPushButton#fsBtn:hover { background: #2b1f1b; border-color: #ff4d8d; }
 QWidget#ytPicker {
 	background: #211815; border: 1px solid #3a2a25; border-radius: 8px;
 }
@@ -338,6 +343,7 @@ void BetterChatDock::buildUi()
 	// Versión del plugin, en pequeño al pie del dock (para soporte).
 	auto *ver = new QLabel(QStringLiteral("v%1").arg(QString::fromUtf8(PLUGIN_VERSION)), this);
 	ver->setObjectName(QStringLiteral("verLabel"));
+	m_verLabel = ver;
 	ver->setAlignment(Qt::AlignRight);
 	outer->addWidget(ver);
 
@@ -588,6 +594,20 @@ void BetterChatDock::buildUi()
 			m_multiChat->document()->setMaximumBlockCount(1000);
 			tv->addWidget(m_multiChat, 1);
 
+			// Botón flotante de pantalla completa en la esquina sup. der. del chat.
+			// Al pulsarlo, el multichat ocupa toda la ventana (oculta el resto del
+			// chrome); un segundo clic restaura. Se reposiciona con un event filter.
+			m_fsBtn = new QPushButton(m_multiChat);
+			m_fsBtn->setObjectName(QStringLiteral("fsBtn"));
+			m_fsBtn->setCursor(Qt::PointingHandCursor);
+			m_fsBtn->setFixedSize(26, 26);
+			m_fsBtn->setToolTip(QStringLiteral("Ver el chat a pantalla completa"));
+			m_fsBtn->setIcon(makeExpandIcon(false));
+			m_fsBtn->setIconSize(QSize(15, 15));
+			connect(m_fsBtn, &QPushButton::clicked, this, &BetterChatDock::toggleChatFullscreen);
+			m_multiChat->installEventFilter(this); // para reposicionar el botón al redimensionar
+			positionFsButton();
+
 			// Al PIE: ayuda + botón/panel para elegir el directo de YouTube.
 			buildYouTubePicker(tv);
 
@@ -671,15 +691,21 @@ void BetterChatDock::buildPlatformBar(QVBoxLayout *parent)
 // YouTube: línea de ayuda contextual + botón + panel plegable con la lista.
 void BetterChatDock::buildYouTubePicker(QVBoxLayout *parent)
 {
+	// Todo dentro de un contenedor para poder ocultarlo de golpe (modo pantalla completa).
+	m_ytZone = new QWidget();
+	auto *zoneV = new QVBoxLayout(m_ytZone);
+	zoneV->setContentsMargins(0, 0, 0, 0);
+	zoneV->setSpacing(6);
+
 	// Línea de ayuda contextual: explica si el directo de YouTube se conecta solo
 	// (plus) o hay que elegirlo a mano (standard). Se rellena en onStatusUpdated.
 	m_ytHelp = new QLabel(QString());
 	m_ytHelp->setObjectName(QStringLiteral("ytHelp"));
 	m_ytHelp->setWordWrap(true);
-	parent->addWidget(m_ytHelp);
+	zoneV->addWidget(m_ytHelp);
 
 	// Fila: indicador "buscando" (izq) + botón para desplegar la lista (der).
-	auto *ytRow = new QWidget();
+	auto *ytRow = new QWidget(m_ytZone);
 	auto *ytH = new QHBoxLayout(ytRow);
 	ytH->setContentsMargins(0, 0, 0, 0);
 	ytH->setSpacing(6);
@@ -688,16 +714,16 @@ void BetterChatDock::buildYouTubePicker(QVBoxLayout *parent)
 	m_ytSearching->setVisible(false);
 	ytH->addWidget(m_ytSearching, 0);
 	ytH->addStretch(1);
-	m_ytPickBtn = new QPushButton(QStringLiteral("Elegir mi directo de YouTube"), ytRow);
+	m_ytPickBtn = new QPushButton(QStringLiteral("Elegir directo de YouTube"), ytRow);
 	m_ytPickBtn->setObjectName(QStringLiteral("ytPickBtn"));
 	m_ytPickBtn->setCursor(Qt::PointingHandCursor);
 	m_ytPickBtn->setToolTip(QStringLiteral("Elegir tu directo de YouTube en curso"));
 	connect(m_ytPickBtn, &QPushButton::clicked, this, &BetterChatDock::toggleYouTubePicker);
 	ytH->addWidget(m_ytPickBtn, 0);
-	parent->addWidget(ytRow);
+	zoneV->addWidget(ytRow);
 
 	// Panel plegable del selector de directos de YouTube (oculto por defecto).
-	m_ytPicker = new QWidget();
+	m_ytPicker = new QWidget(m_ytZone);
 	m_ytPicker->setObjectName(QStringLiteral("ytPicker"));
 	auto *pv = new QVBoxLayout(m_ytPicker);
 	pv->setContentsMargins(10, 8, 10, 8);
@@ -713,7 +739,9 @@ void BetterChatDock::buildYouTubePicker(QVBoxLayout *parent)
 	m_ytList->setSpacing(5);
 	pv->addLayout(m_ytList);
 	m_ytPicker->setVisible(false);
-	parent->addWidget(m_ytPicker);
+	zoneV->addWidget(m_ytPicker);
+
+	parent->addWidget(m_ytZone);
 
 	// Conexiones del selector con el API.
 	connect(m_api, &BetterChatApi::youtubeLiveList, this, &BetterChatDock::onYouTubeLiveList);
@@ -726,9 +754,83 @@ void BetterChatDock::buildYouTubePicker(QVBoxLayout *parent)
 			if (m_ytPicker)
 				m_ytPicker->setVisible(false);
 			if (m_ytPickBtn)
-				m_ytPickBtn->setText(QStringLiteral("Elegir mi directo de YouTube"));
+				m_ytPickBtn->setText(QStringLiteral("Elegir directo de YouTube"));
 		}
 	});
+}
+
+// Icono de pantalla completa dibujado con QPainter (nada de SVG en runtime).
+// expanded=false -> flechas hacia fuera (entrar a fullscreen); true -> hacia dentro.
+QIcon BetterChatDock::makeExpandIcon(bool expanded)
+{
+	QPixmap pm(30, 30);
+	pm.fill(Qt::transparent);
+	QPainter p(&pm);
+	p.setRenderHint(QPainter::Antialiasing, true);
+	QPen pen(QColor("#f6eeea"));
+	pen.setWidth(2);
+	pen.setCapStyle(Qt::RoundCap);
+	pen.setJoinStyle(Qt::RoundJoin);
+	p.setPen(pen);
+	const int a = 6, b = 24; // esquinas del recuadro
+	const int L = 5;          // longitud de las patas
+	// Cuatro esquinas, cada una con dos segmentos en "L".
+	if (!expanded) {
+		// Flechas hacia FUERA: esquinas apuntando a los bordes.
+		p.drawLine(a, a + L, a, a); p.drawLine(a, a, a + L, a);          // sup-izq
+		p.drawLine(b - L, a, b, a); p.drawLine(b, a, b, a + L);          // sup-der
+		p.drawLine(a, b - L, a, b); p.drawLine(a, b, a + L, b);          // inf-izq
+		p.drawLine(b - L, b, b, b); p.drawLine(b, b, b, b - L);          // inf-der
+	} else {
+		// Flechas hacia DENTRO: esquinas apuntando al centro.
+		p.drawLine(a, a + L, a + L, a + L); p.drawLine(a + L, a + L, a + L, a);
+		p.drawLine(b, a + L, b - L, a + L); p.drawLine(b - L, a + L, b - L, a);
+		p.drawLine(a, b - L, a + L, b - L); p.drawLine(a + L, b - L, a + L, b);
+		p.drawLine(b, b - L, b - L, b - L); p.drawLine(b - L, b - L, b - L, b);
+	}
+	p.end();
+	return QIcon(pm);
+}
+
+// Coloca el botón de fullscreen en la esquina superior derecha del área del chat.
+void BetterChatDock::positionFsButton()
+{
+	if (!m_fsBtn || !m_multiChat)
+		return;
+	const int m = 6;
+	m_fsBtn->move(m_multiChat->viewport()->width() - m_fsBtn->width() - m, m);
+	m_fsBtn->raise();
+}
+
+// Alterna el modo pantalla completa del multichat: oculta/restaura todo el chrome
+// del dock (título, nav bar, chips, zona YT, versión) dejando solo el chat.
+void BetterChatDock::toggleChatFullscreen()
+{
+	m_chatFullscreen = !m_chatFullscreen;
+	const bool fs = m_chatFullscreen;
+	// Ocultar/mostrar todo lo que NO es el chat.
+	if (m_brandTitle) m_brandTitle->setVisible(!fs);
+	if (m_navBar) m_navBar->setVisible(!fs);
+	if (m_verLabel) m_verLabel->setVisible(!fs);
+	if (m_platBar) m_platBar->setVisible(!fs);
+	if (m_multiStatus) m_multiStatus->setVisible(!fs);
+	if (m_ytZone) m_ytZone->setVisible(!fs);
+	if (auto *lay = layout())
+		lay->setContentsMargins(fs ? QMargins(0, 0, 0, 0) : QMargins(12, 12, 12, 12));
+	if (m_fsBtn) {
+		m_fsBtn->setIcon(makeExpandIcon(fs));
+		m_fsBtn->setToolTip(fs ? QStringLiteral("Salir de pantalla completa")
+				       : QStringLiteral("Ver el chat a pantalla completa"));
+	}
+	positionFsButton();
+}
+
+// Reposiciona el botón de fullscreen cuando el área del chat cambia de tamaño.
+bool BetterChatDock::eventFilter(QObject *obj, QEvent *ev)
+{
+	if (obj == m_multiChat && (ev->type() == QEvent::Resize || ev->type() == QEvent::Show))
+		positionFsButton();
+	return QWidget::eventFilter(obj, ev);
 }
 
 // Abre/cierra el selector de directos de YouTube; al abrir, pide la lista.
@@ -832,13 +934,13 @@ void BetterChatDock::updateYouTubeHelp()
 			m_ytHelp->setText(QStringLiteral(
 				"Vincula tu cuenta de YouTube en Conexiones para que tu directo "
 				"se conecte solo al transmitir (incluido en BetterChatTV+)."));
-			m_ytPickBtn->setText(QStringLiteral("Elegir mi directo de YouTube"));
+			m_ytPickBtn->setText(QStringLiteral("Elegir directo de YouTube"));
 		}
 	} else {
 		m_ytHelp->setText(QStringLiteral(
 			"Elige tu directo de YouTube al empezar a emitir. "
 			"Con BetterChatTV+ se conecta automáticamente."));
-		m_ytPickBtn->setText(QStringLiteral("Elegir mi directo de YouTube"));
+		m_ytPickBtn->setText(QStringLiteral("Elegir directo de YouTube"));
 	}
 }
 

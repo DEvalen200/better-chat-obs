@@ -41,6 +41,11 @@ class BetterChatDock : public QWidget {
 public:
 	explicit BetterChatDock(QWidget *parent = nullptr);
 	~BetterChatDock() override;
+
+protected:
+	bool eventFilter(QObject *obj, QEvent *ev) override;
+
+public:
 	// Notifica el cambio de estado de transmisión de OBS al servidor (dispara la
 	// auto-conexión de YouTube). La llama el callback del frontend de OBS.
 	void onStreamingChanged(bool active);
@@ -115,6 +120,14 @@ private:
 	void registerPlatformIcons();
 	void buildPlatformBar(QVBoxLayout *parent);   // crea la fila de chips
 	void buildYouTubePicker(QVBoxLayout *parent); // zona de elegir directo YT (al pie)
+	// --- Modo pantalla completa del multichat ---
+	QPushButton *m_fsBtn = nullptr;   // botón flotante en la esquina del chat
+	QWidget *m_ytZone = nullptr;      // contenedor de toda la zona YT (para ocultar)
+	QLabel *m_verLabel = nullptr;     // etiqueta de versión (para ocultar en fullscreen)
+	bool m_chatFullscreen = false;
+	QIcon makeExpandIcon(bool expanded);
+	void positionFsButton();
+	void toggleChatFullscreen();
 	void onPlatformStatus(const QString &platform, const QString &state, const QString &detail);
 	// Selector de directos de YouTube (para no-plus: elegir el directo a mano).
 	QWidget *m_ytPicker = nullptr;      // panel plegable con la lista
