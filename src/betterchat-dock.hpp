@@ -131,6 +131,7 @@ private:
 	QString m_pickedType;              // tipo elegido en el grid ("" | "manual")
 	bool m_lastIsPlus = false;         // último estado de control recibido
 	bool m_lastHasBet = false;
+	bool m_betDataReady = false;       // ya llegó el primer /api/control
 	QWidget *m_betCreate = nullptr;    // formulario de nueva apuesta
 	QWidget *m_betActive = nullptr;    // panel de la apuesta en curso
 	QLabel *m_betGateMsg = nullptr;    // aviso para no-plus

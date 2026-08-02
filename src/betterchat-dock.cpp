@@ -758,6 +758,7 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 	m_betCreateBtn->setCursor(Qt::PointingHandCursor);
 	connect(m_betCreateBtn, &QPushButton::clicked, this, &BetterChatDock::onCreateBetClicked);
 	cv->addWidget(m_betCreateBtn);
+	m_betCreate->setVisible(false); // oculto hasta elegir un tipo (vista por pantallas)
 	parent->addWidget(m_betCreate);
 
 	// ---- Panel de la apuesta en curso ----
@@ -820,6 +821,9 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 	m_betPollTimer = new QTimer(this);
 	m_betPollTimer->setInterval(4000);
 	connect(m_betPollTimer, &QTimer::timeout, this, &BetterChatDock::refreshBets);
+
+	// Estado inicial de pantallas: galería visible, formulario y panel ocultos.
+	updateBetView();
 }
 
 // Pide el estado del panel de control (apuesta activa) al servidor.
@@ -854,6 +858,7 @@ void BetterChatDock::onCreateBetClicked()
 void BetterChatDock::onControlState(const QByteArray &json)
 {
 	const QJsonObject root = QJsonDocument::fromJson(json).object();
+	m_betDataReady = true;
 	m_lastIsPlus = root.value(QStringLiteral("isPlus")).toBool();
 	const QJsonValue betVal = root.value(QStringLiteral("bet"));
 	m_lastHasBet = betVal.isObject();
@@ -920,6 +925,15 @@ void BetterChatDock::onControlState(const QByteArray &json)
 // o la galería de tipos por defecto.
 void BetterChatDock::updateBetView()
 {
+	// Antes de recibir el primer estado del servidor, mostramos la galería (sin
+	// aviso de gate) para no dar un falso "requiere plus".
+	if (!m_betDataReady) {
+		m_betGateMsg->setVisible(false);
+		m_betGrid->setVisible(true);
+		m_betCreate->setVisible(false);
+		m_betActive->setVisible(false);
+		return;
+	}
 	const bool plus = m_lastIsPlus;
 	m_betGateMsg->setVisible(!plus);
 	if (!plus) {
