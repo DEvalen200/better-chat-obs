@@ -588,6 +588,9 @@ void BetterChatDock::buildUi()
 			m_multiChat->document()->setMaximumBlockCount(1000);
 			tv->addWidget(m_multiChat, 1);
 
+			// Al PIE: ayuda + botón/panel para elegir el directo de YouTube.
+			buildYouTubePicker(tv);
+
 			m_tabStack->addWidget(tab); // índice 1
 		}
 
@@ -659,33 +662,39 @@ void BetterChatDock::buildPlatformBar(QVBoxLayout *parent)
 	h->addWidget(cfgBtn, 0);
 	parent->addWidget(m_platBar);
 
-	// Fila propia (debajo de conexiones) con el botón "Elegir directo YT": lista los
-	// directos activos de YouTube del streamer para elegir el del stream sin ir a la web.
-	auto *ytRow = new QWidget();
-	auto *ytH = new QHBoxLayout(ytRow);
-	ytH->setContentsMargins(0, 0, 0, 0);
-	ytH->setSpacing(6);
-	ytH->addStretch(1);
-	// Indicador "buscando automáticamente" (visible solo mientras la auto-conexión
-	// de YouTube está buscando el directo; lo enciende el estado 'searching' por SSE).
-	m_ytSearching = new QLabel(QStringLiteral("Buscando tu directo..."), ytRow);
-	m_ytSearching->setObjectName(QStringLiteral("ytSearching"));
-	m_ytSearching->setVisible(false);
-	ytH->addWidget(m_ytSearching, 0);
-	m_ytPickBtn = new QPushButton(QStringLiteral("Elegir directo YT"), ytRow);
-	m_ytPickBtn->setObjectName(QStringLiteral("ytPickBtn"));
-	m_ytPickBtn->setCursor(Qt::PointingHandCursor);
-	m_ytPickBtn->setToolTip(QStringLiteral("Elegir tu directo de YouTube en curso"));
-	connect(m_ytPickBtn, &QPushButton::clicked, this, &BetterChatDock::toggleYouTubePicker);
-	ytH->addWidget(m_ytPickBtn, 0);
-	parent->addWidget(ytRow);
+	// Estado inicial (se corrige en cuanto lleguen los status por SSE).
+	for (auto it = m_platChips.constBegin(); it != m_platChips.constEnd(); ++it)
+		onPlatformStatus(it.key(), QStringLiteral("off"), QString());
+}
 
+// Construye, al PIE de la pestaña Multichat, la zona de selección de directo de
+// YouTube: línea de ayuda contextual + botón + panel plegable con la lista.
+void BetterChatDock::buildYouTubePicker(QVBoxLayout *parent)
+{
 	// Línea de ayuda contextual: explica si el directo de YouTube se conecta solo
 	// (plus) o hay que elegirlo a mano (standard). Se rellena en onStatusUpdated.
 	m_ytHelp = new QLabel(QString());
 	m_ytHelp->setObjectName(QStringLiteral("ytHelp"));
 	m_ytHelp->setWordWrap(true);
 	parent->addWidget(m_ytHelp);
+
+	// Fila: indicador "buscando" (izq) + botón para desplegar la lista (der).
+	auto *ytRow = new QWidget();
+	auto *ytH = new QHBoxLayout(ytRow);
+	ytH->setContentsMargins(0, 0, 0, 0);
+	ytH->setSpacing(6);
+	m_ytSearching = new QLabel(QStringLiteral("Buscando tu directo..."), ytRow);
+	m_ytSearching->setObjectName(QStringLiteral("ytSearching"));
+	m_ytSearching->setVisible(false);
+	ytH->addWidget(m_ytSearching, 0);
+	ytH->addStretch(1);
+	m_ytPickBtn = new QPushButton(QStringLiteral("Elegir mi directo de YouTube"), ytRow);
+	m_ytPickBtn->setObjectName(QStringLiteral("ytPickBtn"));
+	m_ytPickBtn->setCursor(Qt::PointingHandCursor);
+	m_ytPickBtn->setToolTip(QStringLiteral("Elegir tu directo de YouTube en curso"));
+	connect(m_ytPickBtn, &QPushButton::clicked, this, &BetterChatDock::toggleYouTubePicker);
+	ytH->addWidget(m_ytPickBtn, 0);
+	parent->addWidget(ytRow);
 
 	// Panel plegable del selector de directos de YouTube (oculto por defecto).
 	m_ytPicker = new QWidget();
@@ -717,13 +726,9 @@ void BetterChatDock::buildPlatformBar(QVBoxLayout *parent)
 			if (m_ytPicker)
 				m_ytPicker->setVisible(false);
 			if (m_ytPickBtn)
-				m_ytPickBtn->setText(QStringLiteral("Elegir directo YT"));
+				m_ytPickBtn->setText(QStringLiteral("Elegir mi directo de YouTube"));
 		}
 	});
-
-	// Estado inicial (se corrige en cuanto lleguen los status por SSE).
-	for (auto it = m_platChips.constBegin(); it != m_platChips.constEnd(); ++it)
-		onPlatformStatus(it.key(), QStringLiteral("off"), QString());
 }
 
 // Abre/cierra el selector de directos de YouTube; al abrir, pide la lista.
@@ -733,9 +738,8 @@ void BetterChatDock::toggleYouTubePicker()
 		return;
 	const bool show = !m_ytPicker->isVisible();
 	m_ytPicker->setVisible(show);
-	m_ytPickBtn->setText(show ? QStringLiteral("Ocultar directos")
-				  : QStringLiteral("Elegir directo YT"));
 	if (show) {
+		m_ytPickBtn->setText(QStringLiteral("Ocultar directos"));
 		// Limpiar la lista previa y pedir de nuevo.
 		while (QLayoutItem *it = m_ytList->takeAt(0)) {
 			if (it->widget())
@@ -745,6 +749,8 @@ void BetterChatDock::toggleYouTubePicker()
 		if (m_ytPickerMsg)
 			m_ytPickerMsg->setText(QStringLiteral("Buscando tus directos..."));
 		m_api->fetchYouTubeLive();
+	} else {
+		updateYouTubeHelp(); // restaura el texto del botón según el plan
 	}
 }
 
@@ -821,18 +827,18 @@ void BetterChatDock::updateYouTubeHelp()
 			m_ytHelp->setText(QStringLiteral(
 				"Con BetterChatTV+, tu directo de YouTube se conecta solo al "
 				"iniciar la transmisión. No tienes que hacer nada."));
-			m_ytPickBtn->setText(QStringLiteral("Elegir a mano"));
+			m_ytPickBtn->setText(QStringLiteral("Elegir otro directo"));
 		} else {
 			m_ytHelp->setText(QStringLiteral(
 				"Vincula tu cuenta de YouTube en Conexiones para que tu directo "
 				"se conecte solo al transmitir (incluido en BetterChatTV+)."));
-			m_ytPickBtn->setText(QStringLiteral("Elegir directo YT"));
+			m_ytPickBtn->setText(QStringLiteral("Elegir mi directo de YouTube"));
 		}
 	} else {
 		m_ytHelp->setText(QStringLiteral(
 			"Elige tu directo de YouTube al empezar a emitir. "
 			"Con BetterChatTV+ se conecta automáticamente."));
-		m_ytPickBtn->setText(QStringLiteral("Elegir directo YT"));
+		m_ytPickBtn->setText(QStringLiteral("Elegir mi directo de YouTube"));
 	}
 }
 

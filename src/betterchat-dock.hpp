@@ -114,6 +114,7 @@ private:
 	QHash<QString, QString> m_platIconB64; // platform -> PNG base64 (para data URI en QLabel)
 	void registerPlatformIcons();
 	void buildPlatformBar(QVBoxLayout *parent);   // crea la fila de chips
+	void buildYouTubePicker(QVBoxLayout *parent); // zona de elegir directo YT (al pie)
 	void onPlatformStatus(const QString &platform, const QString &state, const QString &detail);
 	// Selector de directos de YouTube (para no-plus: elegir el directo a mano).
 	QWidget *m_ytPicker = nullptr;      // panel plegable con la lista
