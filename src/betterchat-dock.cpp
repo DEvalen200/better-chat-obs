@@ -156,6 +156,7 @@ QPushButton#ytPickBtn {
 QPushButton#ytPickBtn:hover { background: #ff3333; }
 QLabel#ytSearching { color: #ffb020; font-size: 11px; font-style: italic; }
 QLabel#ytHelp { color: #b9a49c; font-size: 11px; }
+QLabel#verLabel { color: #6b5a53; font-size: 10px; padding: 2px 2px 0 0; }
 QWidget#ytPicker {
 	background: #211815; border: 1px solid #3a2a25; border-radius: 8px;
 }
@@ -333,6 +334,12 @@ void BetterChatDock::buildUi()
 
 	m_stack = new QStackedWidget(this);
 	outer->addWidget(m_stack, 1);
+
+	// Versión del plugin, en pequeño al pie del dock (para soporte).
+	auto *ver = new QLabel(QStringLiteral("v%1").arg(QString::fromUtf8(PLUGIN_VERSION)), this);
+	ver->setObjectName(QStringLiteral("verLabel"));
+	ver->setAlignment(Qt::AlignRight);
+	outer->addWidget(ver);
 
 	// ---- Vista 0: login ----
 	{
