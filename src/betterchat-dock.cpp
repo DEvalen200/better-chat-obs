@@ -642,7 +642,15 @@ void BetterChatDock::buildUi()
 			tv->setContentsMargins(0, 0, 0, 0);
 			tv->setSpacing(8);
 			buildBetsTab(tv, tab);
-			m_tabStack->addWidget(tab); // índice 2
+			// En un scroll: la galería tiene varias tarjetas y sin scroll el dock
+			// flotante se estiraba verticalmente rompiendo la disposición.
+			auto *scroll = new QScrollArea(m_tabStack);
+			scroll->setWidget(tab);
+			scroll->setWidgetResizable(true);
+			scroll->setFrameShape(QFrame::NoFrame);
+			scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+			scroll->setObjectName(QStringLiteral("scrollPage"));
+			m_tabStack->addWidget(scroll); // índice 2
 		}
 
 		m_stack->addWidget(page);
