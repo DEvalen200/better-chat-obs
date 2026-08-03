@@ -63,107 +63,109 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QDockWidget>
 #include <QSignalBlocker>
 
-// Estilo del rebrand: negro cálido rosáceo, plano, acento rosa/turquesa.
+// Estilo del rebrand: MISMA paleta que la web (bg #120b10, panel #1e141b,
+// line #3a2833, texto #f6eef3, acento rosa #ff7ec8, turquesa #3ad9d9, ok/err).
 static const char *kStyle = R"CSS(
-QWidget#bcRoot { background: #17110f; color: #f6eeea; font-family: 'Segoe UI', sans-serif; }
-QLabel { color: #f6eeea; }
-QLabel#muted { color: #b9a49c; font-size: 12px; }
+QWidget#bcRoot { background: #120b10; color: #f6eef3; font-family: 'Segoe UI', sans-serif; }
+QLabel { color: #f6eef3; }
+QLabel#muted { color: #b3a1ac; font-size: 12px; }
 QLabel#title { font-size: 15px; font-weight: 700; }
 QPushButton#primary {
-	background: #ff4d8d; color: #1a0c12; border: 0; border-radius: 8px;
+	background: #ff7ec8; color: #120b10; border: 0; border-radius: 8px;
 	padding: 9px 14px; font-weight: 700;
 }
-QPushButton#primary:disabled { background: #6b3450; color: #b98aa0; }
+QPushButton#primary:hover { background: #ff96d3; }
+QPushButton#primary:disabled { background: #7a3f60; color: #c79ab3; }
 QPushButton#ghost {
-	background: transparent; color: #b9a49c; border: 1px solid #3a2a25;
+	background: transparent; color: #b3a1ac; border: 1px solid #3a2833;
 	border-radius: 8px; padding: 7px 12px;
 }
 QPushButton#accent {
-	background: #38d39f; color: #06231a; border: 0; border-radius: 8px;
+	background: #3ad9d9; color: #0b2b2b; border: 0; border-radius: 8px;
 	padding: 7px 12px; font-weight: 700;
 }
-QPushButton#accent:hover { background: #4fdcac; }
-QPushButton#accent:disabled { background: #26514a; color: #6f8f87; }
+QPushButton#accent:hover { background: #57e2e2; }
+QPushButton#accent:disabled { background: #275555; color: #6f9191; }
 QPushButton#danger {
-	background: #ff5b6a; color: #2a0006; border: 0; border-radius: 8px;
+	background: #ff5d6c; color: #2a0006; border: 0; border-radius: 8px;
 	padding: 7px 12px; font-weight: 700;
 }
-QPushButton#danger:hover { background: #ff7280; }
+QPushButton#danger:hover { background: #ff7580; }
 QPushButton#danger:disabled { background: #5c2b30; color: #a97b80; }
 QLabel#liveOn {
-	background: #38d39f; color: #06231a; border-radius: 6px;
+	background: #3ad07a; color: #0b2b16; border-radius: 6px;
 	padding: 3px 9px; font-weight: 700; font-size: 12px;
 }
 QLabel#liveOff {
-	background: #2b1f1b; color: #b9a49c; border: 1px solid #3a2a25;
+	background: #291b24; color: #b3a1ac; border: 1px solid #3a2833;
 	border-radius: 6px; padding: 3px 9px; font-size: 12px;
 }
 QLabel#code {
-	background: #2b1f1b; border: 1px solid #3a2a25; border-radius: 8px;
+	background: #291b24; border: 1px solid #3a2833; border-radius: 8px;
 	padding: 10px; font-family: monospace; font-size: 20px; font-weight: 700;
 	letter-spacing: 3px;
 }
-QFrame#card { background: #211815; border: 1px solid #3a2a25; border-radius: 12px; }
+QFrame#card { background: #1e141b; border: 1px solid #3a2833; border-radius: 12px; }
 QListWidget#chatList {
-	background: #211815; border: 1px solid #3a2a25; border-radius: 8px;
-	color: #f6eeea; padding: 4px; outline: 0;
+	background: #1e141b; border: 1px solid #3a2833; border-radius: 8px;
+	color: #f6eef3; padding: 4px; outline: 0;
 }
 QListWidget#chatList::item { padding: 3px 2px; border-radius: 6px; }
-QListWidget#chatList::item:selected { background: #ff4d8d; color: #1a0c12; }
-QPushButton#ghost:disabled { color: #6b5a53; border-color: #2b1f1b; }
+QListWidget#chatList::item:selected { background: #ff7ec8; color: #120b10; }
+QPushButton#ghost:disabled { color: #6b5a63; border-color: #291b24; }
 QPushButton#trash {
 	background: transparent; border: 1px solid transparent; border-radius: 6px;
 }
-QPushButton#trash:hover { background: #3a1f28; border-color: #ff4d8d; }
+QPushButton#trash:hover { background: #3a1f2e; border-color: #ff7ec8; }
 QComboBox {
-	background: #2b1f1b; color: #f6eeea; border: 1px solid #3a2a25;
+	background: #291b24; color: #f6eef3; border: 1px solid #3a2833;
 	border-radius: 6px; padding: 4px 8px;
 }
 QComboBox QAbstractItemView {
-	background: #2b1f1b; color: #f6eeea; selection-background-color: #ff4d8d;
-	selection-color: #1a0c12; border: 1px solid #3a2a25;
+	background: #291b24; color: #f6eef3; selection-background-color: #ff7ec8;
+	selection-color: #120b10; border: 1px solid #3a2833;
 }
-QCheckBox { color: #f6eeea; font-size: 12px; spacing: 8px; }
-QFrame#sep { color: #3a2a25; max-height: 1px; }
-QWidget#navBar { background: #211815; border-radius: 9px; }
+QCheckBox { color: #f6eef3; font-size: 12px; spacing: 8px; }
+QFrame#sep { color: #3a2833; max-height: 1px; }
+QWidget#navBar { background: #1e141b; border-radius: 9px; }
 QPushButton#navTab {
-	background: transparent; color: #b9a49c; border: 0;
+	background: transparent; color: #b3a1ac; border: 0;
 	border-bottom: 2px solid transparent; border-radius: 0;
 	padding: 8px 4px; font-size: 12px; font-weight: 600;
 }
-QPushButton#navTab:hover { color: #f6eeea; }
+QPushButton#navTab:hover { color: #f6eef3; }
 QPushButton#navTab:checked {
-	color: #ff4d8d; border-bottom: 2px solid #ff4d8d;
+	color: #ff7ec8; border-bottom: 2px solid #ff7ec8;
 }
 QScrollArea#scrollPage { background: transparent; }
 QScrollArea#scrollPage > QWidget > QWidget { background: transparent; }
 QListWidget#multiList {
-	background: #211815; border: 1px solid #3a2a25; border-radius: 8px;
-	color: #f6eeea; padding: 4px; outline: 0;
+	background: #1e141b; border: 1px solid #3a2833; border-radius: 8px;
+	color: #f6eef3; padding: 4px; outline: 0;
 }
-QListWidget#multiList::item { border-bottom: 1px solid #2b1f1b; }
+QListWidget#multiList::item { border-bottom: 1px solid #291b24; }
 QTextEdit#multiChat {
-	background: #211815; border: 1px solid #3a2a25; border-radius: 8px;
-	color: #f6eeea; padding: 4px;
+	background: #1e141b; border: 1px solid #3a2833; border-radius: 8px;
+	color: #f6eef3; padding: 4px;
 }
 QPushButton#connBtn {
-	background: #38d39f; color: #06231a; border: 0; border-radius: 6px;
+	background: #3ad9d9; color: #0b2b2b; border: 0; border-radius: 6px;
 	padding: 3px 9px; font-size: 11px; font-weight: 700;
 }
-QPushButton#connBtn:hover { background: #4fdcac; }
+QPushButton#connBtn:hover { background: #57e2e2; }
 QPushButton#ytPickBtn {
 	background: #ff0000; color: #fff; border: 0; border-radius: 6px;
 	padding: 3px 9px; font-size: 11px; font-weight: 700;
 }
 QPushButton#ytPickBtn:hover { background: #ff3333; }
-QLabel#ytSearching { color: #ffb020; font-size: 11px; font-style: italic; }
-QLabel#ytHelp { color: #b9a49c; font-size: 11px; }
-QLabel#verLabel { color: #6b5a53; font-size: 10px; padding: 2px 2px 0 0; }
+QLabel#ytSearching { color: #ffb347; font-size: 11px; font-style: italic; }
+QLabel#ytHelp { color: #b3a1ac; font-size: 11px; }
+QLabel#verLabel { color: #6b5a63; font-size: 10px; padding: 2px 2px 0 0; }
 QLineEdit {
-	background: #2b1f1b; color: #f6eeea; border: 1px solid #3a2a25;
+	background: #291b24; color: #f6eef3; border: 1px solid #3a2833;
 	border-radius: 6px; padding: 6px 8px; font-size: 12px;
 }
-QLineEdit:focus { border-color: #ff4d8d; }
+QLineEdit:focus { border-color: #ff7ec8; }
 /* ===== Pestaña Minijuegos: bloque turquesa fiel a la web (/control) ===== */
 QFrame#betsBlock {
 	background: #3ad9d9; border: 3px solid rgba(18,11,16,0.9); border-radius: 18px;
@@ -248,31 +250,31 @@ QLabel#histItem {
 	border: 1px solid rgba(18,11,16,0.14); border-radius: 8px; padding: 8px 10px;
 }
 QPushButton#backBtn {
-	background: transparent; color: #b9a49c; border: 1px solid #3a2a25;
+	background: transparent; color: #b3a1ac; border: 1px solid #3a2833;
 	border-radius: 6px; padding: 4px 10px; font-size: 12px;
 }
-QPushButton#backBtn:hover { border-color: #ff4d8d; color: #f6eeea; }
+QPushButton#backBtn:hover { border-color: #ff7ec8; color: #f6eef3; }
 QPushButton#fsBtn {
-	background: rgba(33,24,21,0.82); border: 1px solid #3a2a25; border-radius: 6px;
+	background: rgba(33,24,21,0.82); border: 1px solid #3a2833; border-radius: 6px;
 }
-QPushButton#fsBtn:hover { background: #2b1f1b; border-color: #ff4d8d; }
+QPushButton#fsBtn:hover { background: #291b24; border-color: #ff7ec8; }
 QWidget#ytPicker {
-	background: #211815; border: 1px solid #3a2a25; border-radius: 8px;
+	background: #1e141b; border: 1px solid #3a2833; border-radius: 8px;
 }
-QLabel#ytPickTitle { color: #f6eeea; font-weight: 700; font-size: 12px; }
+QLabel#ytPickTitle { color: #f6eef3; font-weight: 700; font-size: 12px; }
 QPushButton#ytUseBtn {
-	background: #ff4d8d; color: #1a0c12; border: 0; border-radius: 6px;
+	background: #ff7ec8; color: #120b10; border: 0; border-radius: 6px;
 	padding: 4px 12px; font-size: 12px; font-weight: 700;
 }
-QPushButton#ytUseBtn:hover { background: #ff6ca1; }
-QSlider::groove:horizontal { height: 4px; background: #3a2a25; border-radius: 2px; }
-QSlider::sub-page:horizontal { background: #ff4d8d; border-radius: 2px; }
+QPushButton#ytUseBtn:hover { background: #ff96d3; }
+QSlider::groove:horizontal { height: 4px; background: #3a2833; border-radius: 2px; }
+QSlider::sub-page:horizontal { background: #ff7ec8; border-radius: 2px; }
 QSlider::handle:horizontal {
 	width: 14px; height: 14px; margin: -6px 0; border-radius: 7px;
-	background: #ff4d8d; border: 2px solid #1a0c12;
+	background: #ff7ec8; border: 2px solid #120b10;
 }
 QSpinBox {
-	background: #2b1f1b; color: #f6eeea; border: 1px solid #3a2a25;
+	background: #291b24; color: #f6eef3; border: 1px solid #3a2833;
 	border-radius: 6px; padding: 2px 4px; min-width: 54px;
 }
 )CSS";
@@ -296,7 +298,7 @@ protected:
 		QPainter p(this);
 		p.setRenderHint(QPainter::Antialiasing, true);
 		// Track.
-		QColor track = isChecked() ? QColor("#38d39f") : QColor("#6b5850");
+		QColor track = isChecked() ? QColor("#ff7ec8") : QColor("#4a3a44");
 		if (!isEnabled())
 			track.setAlpha(110);
 		p.setPen(Qt::NoPen);
@@ -309,7 +311,7 @@ protected:
 		p.drawEllipse(kx, y + 3, d, d);
 		// Texto a la derecha del switch.
 		if (!text().isEmpty()) {
-			p.setPen(QColor(isEnabled() ? "#f6eeea" : "#8a756c"));
+			p.setPen(QColor(isEnabled() ? "#f6eef3" : "#8a7684"));
 			QRect tr(w + 8, 0, width() - w - 8, height());
 			p.drawText(tr, Qt::AlignVCenter | Qt::AlignLeft, text());
 		}
@@ -1301,7 +1303,7 @@ QIcon BetterChatDock::makeExpandIcon(bool expanded)
 	pm.fill(Qt::transparent);
 	QPainter p(&pm);
 	p.setRenderHint(QPainter::Antialiasing, true);
-	QPen pen(QColor("#f6eeea"));
+	QPen pen(QColor("#f6eef3"));
 	pen.setWidth(2);
 	pen.setCapStyle(Qt::RoundCap);
 	pen.setJoinStyle(Qt::RoundJoin);
@@ -1445,7 +1447,7 @@ void BetterChatDock::onYouTubeLiveList(const QByteArray &json)
 		rh->setSpacing(8);
 		auto *lbl = new QLabel(row);
 		lbl->setTextFormat(Qt::RichText);
-		lbl->setText(QStringLiteral("<b>%1</b> <span style='color:#b9a49c; font-size:11px;'>%2</span>")
+		lbl->setText(QStringLiteral("<b>%1</b> <span style='color:#b3a1ac; font-size:11px;'>%2</span>")
 				     .arg(title.toHtmlEscaped(), privLabel.value(privacy, privacy)));
 		lbl->setWordWrap(true);
 		rh->addWidget(lbl, 1);
@@ -1508,17 +1510,17 @@ void BetterChatDock::onPlatformStatus(const QString &platform, const QString &st
 	// Color del punto + texto según el estado.
 	QString dot, label;
 	if (state == QStringLiteral("connected")) {
-		dot = QStringLiteral("#38d39f"); label = QStringLiteral("en vivo");
+		dot = QStringLiteral("#3ad07a"); label = QStringLiteral("en vivo");
 	} else if (state == QStringLiteral("connecting")) {
-		dot = QStringLiteral("#ffb020"); label = QStringLiteral("...");
+		dot = QStringLiteral("#ffb347"); label = QStringLiteral("...");
 	} else if (state == QStringLiteral("searching")) {
-		dot = QStringLiteral("#ffb020"); label = QStringLiteral("buscando");
+		dot = QStringLiteral("#ffb347"); label = QStringLiteral("buscando");
 	} else if (state == QStringLiteral("error")) {
-		dot = QStringLiteral("#ff5b6a"); label = QStringLiteral("error");
+		dot = QStringLiteral("#ff5d6c"); label = QStringLiteral("error");
 	} else if (state == QStringLiteral("disconnected")) {
-		dot = QStringLiteral("#ff5b6a"); label = QStringLiteral("sin directo");
+		dot = QStringLiteral("#ff5d6c"); label = QStringLiteral("sin directo");
 	} else { // off (no configurada)
-		dot = QStringLiteral("#6b5a53"); label = QStringLiteral("off");
+		dot = QStringLiteral("#6b5a63"); label = QStringLiteral("off");
 	}
 
 	const QString plat = platform.toLower();
@@ -1534,12 +1536,12 @@ void BetterChatDock::onPlatformStatus(const QString &platform, const QString &st
 	// Chip: [logo] •estado, con punto de color según el estado.
 	chip->setText(QStringLiteral(
 			      "%1 <span style='color:%2;'>&#9679;</span> "
-			      "<span style='color:#b9a49c; font-size:11px;'>%3</span>")
+			      "<span style='color:#b3a1ac; font-size:11px;'>%3</span>")
 			      .arg(icon, dot, label));
 	chip->setStyleSheet(state == QStringLiteral("off")
-				    ? QStringLiteral("QLabel#platChip { background:#211815; border:1px solid #2b1f1b; "
+				    ? QStringLiteral("QLabel#platChip { background:#1e141b; border:1px solid #291b24; "
 						     "border-radius:6px; padding:3px 7px; }")
-				    : QStringLiteral("QLabel#platChip { background:#2b1f1b; border:1px solid #3a2a25; "
+				    : QStringLiteral("QLabel#platChip { background:#291b24; border:1px solid #3a2833; "
 						     "border-radius:6px; padding:3px 7px; }"));
 }
 
@@ -1596,14 +1598,14 @@ void BetterChatDock::onChatMessage(const QString &platform, const QString &platf
 		icon = QStringLiteral("<img src='bcplat://%1' width='16' height='16'>").arg(plat);
 	} else {
 		const QString label = (platformLabel.isEmpty() ? platform : platformLabel).toHtmlEscaped();
-		icon = QStringLiteral("<span style='background:#3a2a25; color:#f6eeea; font-size:10px; "
+		icon = QStringLiteral("<span style='background:#3a2833; color:#f6eef3; font-size:10px; "
 				      "padding:1px 5px; border-radius:4px;'>%1</span>")
 			       .arg(label);
 	}
 
 	const QString html =
 		QStringLiteral("%1 <b style='color:%2'>%3:</b> "
-			       "<span style='color:#f6eeea'>%4</span>")
+			       "<span style='color:#f6eef3'>%4</span>")
 			.arg(icon, nameColor, author.toHtmlEscaped(), text.toHtmlEscaped());
 
 	// Auto-scroll solo si ya estaba al fondo (no interrumpir si el usuario sube).
@@ -1644,7 +1646,7 @@ void BetterChatDock::onChatEvent(const QString &platform, const QString &platfor
 		icon = platformLabel.toHtmlEscaped();
 
 	// Color e ícono-emoji semántico segun el tipo de evento.
-	QString accent = QStringLiteral("#ff4d8d");
+	QString accent = QStringLiteral("#ff7ec8");
 	QString glyph, desc;
 	const QString A = QStringLiteral("<b>%1</b>").arg(actor.toHtmlEscaped());
 	if (kind == QStringLiteral("cheer")) {
@@ -1656,11 +1658,11 @@ void BetterChatDock::onChatEvent(const QString &platform, const QString &platfor
 		if (!text.isEmpty())
 			desc += QStringLiteral(": %1").arg(text.toHtmlEscaped());
 	} else if (kind == QStringLiteral("sub")) {
-		accent = QStringLiteral("#38d39f"); glyph = QStringLiteral("SUB");
+		accent = QStringLiteral("#3ad9d9"); glyph = QStringLiteral("SUB");
 		desc = QStringLiteral("%1 se suscribió%2").arg(A,
 			unit.isEmpty() ? QString() : QStringLiteral(" (%1)").arg(unit.toHtmlEscaped()));
 	} else if (kind == QStringLiteral("resub")) {
-		accent = QStringLiteral("#38d39f"); glyph = QStringLiteral("RESUB");
+		accent = QStringLiteral("#3ad9d9"); glyph = QStringLiteral("RESUB");
 		desc = QStringLiteral("%1 renovó su sub").arg(A);
 		if (amount > 0)
 			desc += QStringLiteral(" (%1 meses)").arg(amount);
@@ -1699,7 +1701,7 @@ void BetterChatDock::onChatEvent(const QString &platform, const QString &platfor
 			"style='background:%1; margin:2px 0;'><tr>"
 			"<td style='border-left:3px solid %2;'>"
 			"%3 <span style='color:%2; font-weight:700; font-size:10px;'>%4</span> "
-			"<span style='color:#f6eeea;'>%5</span>"
+			"<span style='color:#f6eef3;'>%5</span>"
 			"</td></tr></table>")
 			.arg(accent + QStringLiteral("22"), accent, icon, glyph, desc);
 
@@ -1795,7 +1797,7 @@ void BetterChatDock::onStatusUpdated()
 	if (m_brandTitle) {
 		m_brandTitle->setTextFormat(Qt::RichText);
 		m_brandTitle->setText(m_api->isPlus()
-			? QStringLiteral("BetterChatTV<span style='color:#ff4d8d;'>+</span>")
+			? QStringLiteral("BetterChatTV<span style='color:#ff7ec8;'>+</span>")
 			: QStringLiteral("BetterChatTV"));
 	}
 
@@ -1904,7 +1906,7 @@ void BetterChatDock::refreshChatList()
 			pm.fill(Qt::transparent);
 			QPainter p(&pm);
 			p.setRenderHint(QPainter::Antialiasing, true);
-			QPen pen(QColor("#b9a49c"));
+			QPen pen(QColor("#b3a1ac"));
 			pen.setWidthF(2.2);
 			pen.setCapStyle(Qt::RoundCap);
 			pen.setJoinStyle(Qt::RoundJoin);
