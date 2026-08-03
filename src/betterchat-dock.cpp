@@ -400,6 +400,7 @@ void BetterChatDock::disconnectObsSignals()
 void BetterChatDock::buildUi()
 {
 	setObjectName(QStringLiteral("bcRoot"));
+	setAttribute(Qt::WA_StyledBackground, true); // pinta el fondo (que no se cuele el gris de OBS)
 	setStyleSheet(QString::fromUtf8(kStyle));
 
 	auto *outer = new QVBoxLayout(this);
@@ -2216,6 +2217,12 @@ extern "C" void betterchat_register_dock(void)
 	dockWidget->setWidget(dock);
 	dockWidget->setFloating(true);
 	dockWidget->setAllowedAreas(Qt::AllDockWidgetAreas);
+	// Estilizar el contenedor del dock (barra de título + marco) con la paleta de
+	// la web: por defecto OBS lo pinta gris. El widget interno ya es negro-vino.
+	dockWidget->setStyleSheet(QStringLiteral(
+		"QDockWidget { background: #120b10; color: #f6eef3; }"
+		"QDockWidget::title { background: #1e141b; color: #f6eef3;"
+		" padding: 6px 8px; text-align: left; border-bottom: 1px solid #3a2833; }"));
 	mainWindow->addDockWidget(Qt::RightDockWidgetArea, dockWidget);
 	dockWidget->hide();
 
