@@ -1843,28 +1843,22 @@ void BetterChatDock::onYouTubeLiveError(const QString &message)
 		m_ytPickerMsg->setText(message);
 }
 
-// Ajusta la ayuda y el botón de YouTube según el plan: los plus se conectan solos,
-// los standard eligen el directo a mano.
+// Ajusta la ayuda y el botón de YouTube: la auto-conexión es GRATIS para todos
+// (solo depende de tener YouTube vinculado). Vinculado -> se conecta solo al
+// transmitir; sin vincular -> se invita a vincular (o elegir el directo a mano).
 void BetterChatDock::updateYouTubeHelp()
 {
 	if (!m_ytHelp || !m_ytPickBtn)
 		return;
-	if (m_api->isPlus()) {
-		if (m_api->youtubeLinked()) {
-			m_ytHelp->setText(QStringLiteral(
-				"Con BetterChatTV+, tu directo de YouTube se conecta solo al "
-				"iniciar la transmisión. No tienes que hacer nada."));
-			m_ytPickBtn->setText(QStringLiteral("Elegir otro directo"));
-		} else {
-			m_ytHelp->setText(QStringLiteral(
-				"Vincula tu cuenta de YouTube en Conexiones para que tu directo "
-				"se conecte solo al transmitir (incluido en BetterChatTV+)."));
-			m_ytPickBtn->setText(QStringLiteral("Elegir directo de YouTube"));
-		}
+	if (m_api->youtubeLinked()) {
+		m_ytHelp->setText(QStringLiteral(
+			"Tu directo de YouTube se conecta solo al iniciar la "
+			"transmisión. No tienes que hacer nada."));
+		m_ytPickBtn->setText(QStringLiteral("Elegir otro directo"));
 	} else {
 		m_ytHelp->setText(QStringLiteral(
-			"Elige tu directo de YouTube al empezar a emitir. "
-			"Con BetterChatTV+ se conecta automáticamente."));
+			"Vincula tu canal de YouTube en Conexiones para que tu directo "
+			"se conecte solo al transmitir. También puedes elegirlo a mano."));
 		m_ytPickBtn->setText(QStringLiteral("Elegir directo de YouTube"));
 	}
 }

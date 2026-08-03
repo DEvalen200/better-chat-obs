@@ -48,7 +48,7 @@ public:
 	void setAutoTest(bool active);
 	// Estado actual del auto-test (según el último status recibido).
 	bool autoTestActive() const { return m_autoTest; }
-	// ¿El dueño tiene BetterChatTV+? (auto-conexión de YouTube).
+	// ¿El dueño tiene BetterChatTV+? (branding "+" y apuestas premium).
 	bool isPlus() const { return m_isPlus; }
 	// ¿Tiene la cuenta de YouTube vinculada?
 	bool youtubeLinked() const { return m_youtubeLinked; }
@@ -125,7 +125,7 @@ private:
 	QString m_platform;
 	bool m_live = false;
 	bool m_autoTest = false; // estado de los mensajes de prueba automáticos (sincronía)
-	bool m_isPlus = false;        // BetterChatTV+ (auto-conexión de YouTube)
+	bool m_isPlus = false;        // BetterChatTV+ (branding "+" y apuestas premium)
 	bool m_youtubeLinked = false; // cuenta de YouTube vinculada
 
 	// Stream SSE del multichat en vivo.
