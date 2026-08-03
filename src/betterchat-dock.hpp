@@ -13,6 +13,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QWidget>
 #include <QList>
 #include <QHash>
+#include <QJsonArray>
 
 struct calldata;
 typedef struct calldata calldata_t;
@@ -143,11 +144,22 @@ private:
 	QList<QLineEdit *> m_betOptFields;     // campos de opción actuales
 	QWidget *m_betCreateForm = nullptr;    // widget padre de los campos (para nuevos hijos)
 	void addBetOptionField(const QString &text = QString()); // añade un campo de opción
+	void renumberBetOptions();                               // renumera placeholders "Opción N"
+	void resetBetOptions();                                  // deja 2 opciones vacías
+	void fillBetForm(const QString &title, const QStringList &options); // "repetir" del historial
+	void markBetFieldError(QLineEdit *field);                // resalta un campo en rojo
+	void clearBetFieldErrors();                              // quita el resaltado de error
 	QComboBox *m_betDuration = nullptr;// duración (cierre automático)
 	QPushButton *m_betCreateBtn = nullptr;
 	QLabel *m_betMsg = nullptr;        // mensajes de resultado
 	QWidget *m_betHistory = nullptr;   // tarjeta de historial de predicciones
 	QVBoxLayout *m_betHistoryBox = nullptr; // filas del historial
+	QJsonArray m_betHistoryData;       // historial completo recibido
+	int m_betHistoryPage = 0;          // página actual (5 por página)
+	QLabel *m_betHistoryPageLbl = nullptr;
+	QPushButton *m_betHistPrev = nullptr;
+	QPushButton *m_betHistNext = nullptr;
+	void renderHistoryPage();          // pinta la página actual del historial
 	int m_lastHistoryCount = 0;        // nº de predicciones en el historial
 	QLabel *m_betActiveTitle = nullptr;// título de la apuesta activa
 	QLabel *m_betActiveState = nullptr;// estado (abierta/bloqueada) + bote

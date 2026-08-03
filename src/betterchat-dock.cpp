@@ -38,6 +38,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QHash>
 #include <QScrollArea>
 #include <QComboBox>
+#include <QStyle>
 #include <QLineEdit>
 #include <QCheckBox>
 #include <QSlider>
@@ -183,9 +184,34 @@ QFrame#betsBlock QLineEdit {
 	border-radius: 7px; padding: 7px 9px; font-size: 12px;
 }
 QFrame#betsBlock QLineEdit:focus { border-color: #120b10; }
+/* Campo con error de validación: borde rojo grueso */
+QFrame#betsBlock QLineEdit[betError="true"] {
+	border: 2px solid #ff5d6c; background: #fff2f3;
+}
+/* Botón de eliminar una opción (✕) */
+QPushButton#betDelOpt {
+	background: #ffffff; color: #ff5d6c; border: 1px solid #159a9a;
+	border-radius: 7px; font-size: 13px; font-weight: 700;
+}
+QPushButton#betDelOpt:hover { background: #ff5d6c; color: #ffffff; border-color: #ff5d6c; }
+/* Botón "Repetir" del historial */
+QPushButton#histRepeat {
+	background: #120b10; color: #ffffff; border: 0; border-radius: 7px;
+	padding: 5px 11px; font-size: 11px; font-weight: 700;
+}
+QPushButton#histRepeat:hover { background: #2a1a24; }
+QLabel#histText { color: #134a4a; font-size: 11px; }
 QFrame#betsBlock QComboBox {
-	background: #ffffff; color: #120b10; border: 1px solid rgba(18,11,16,0.2);
+	background: #ffffff; color: #120b10; border: 1px solid #159a9a;
 	border-radius: 7px; padding: 5px 8px; font-size: 12px;
+}
+QFrame#betsBlock QComboBox::drop-down {
+	subcontrol-origin: padding; subcontrol-position: center right;
+	width: 20px; border: 0;
+}
+QFrame#betsBlock QComboBox::down-arrow {
+	image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDEyIDEyIj48cGF0aCBkPSJNMiA0IEw2IDggTDEwIDQiIHN0cm9rZT0iIzEyMGIxMCIgc3Ryb2tlLXdpZHRoPSIyIiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48L3N2Zz4=);
+	width: 12px; height: 12px;
 }
 /* Botón "Crear apuesta" y acciones principales: tinta oscura sólida */
 QFrame#betsBlock QPushButton#primary {
@@ -876,6 +902,35 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 	m_betHistoryBox = new QVBoxLayout();
 	m_betHistoryBox->setSpacing(5);
 	hv->addLayout(m_betHistoryBox);
+	// Controles de paginación (5 por página): anterior / X de Y / siguiente.
+	auto *pageRow = new QHBoxLayout();
+	pageRow->setSpacing(6);
+	m_betHistPrev = new QPushButton(QStringLiteral("‹ Anteriores"), m_betHistory);
+	m_betHistPrev->setObjectName(QStringLiteral("betGhost"));
+	m_betHistPrev->setCursor(Qt::PointingHandCursor);
+	connect(m_betHistPrev, &QPushButton::clicked, this, [this]() {
+		if (m_betHistoryPage > 0) {
+			--m_betHistoryPage;
+			renderHistoryPage();
+		}
+	});
+	pageRow->addWidget(m_betHistPrev, 0);
+	m_betHistoryPageLbl = new QLabel(QString(), m_betHistory);
+	m_betHistoryPageLbl->setObjectName(QStringLiteral("muted"));
+	m_betHistoryPageLbl->setAlignment(Qt::AlignCenter);
+	pageRow->addWidget(m_betHistoryPageLbl, 1);
+	m_betHistNext = new QPushButton(QStringLiteral("Siguientes ›"), m_betHistory);
+	m_betHistNext->setObjectName(QStringLiteral("betGhost"));
+	m_betHistNext->setCursor(Qt::PointingHandCursor);
+	connect(m_betHistNext, &QPushButton::clicked, this, [this]() {
+		const int pages = (m_betHistoryData.size() + 4) / 5;
+		if (m_betHistoryPage < pages - 1) {
+			++m_betHistoryPage;
+			renderHistoryPage();
+		}
+	});
+	pageRow->addWidget(m_betHistNext, 0);
+	hv->addLayout(pageRow);
 	m_betHistory->setVisible(false);
 	bp->addWidget(m_betHistory);
 
@@ -933,13 +988,8 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 			m_pickedType.clear();
 			// Limpiar el formulario para la próxima: título y opciones (dejar 2 vacías).
 			if (m_betTitle) m_betTitle->clear();
-			for (QLineEdit *e : m_betOptFields)
-				e->deleteLater();
-			m_betOptFields.clear();
-			if (m_betOptInputs) {
-				addBetOptionField();
-				addBetOptionField();
-			}
+			clearBetFieldErrors();
+			resetBetOptions();
 		}
 	});
 	m_betPollTimer = new QTimer(this);
@@ -957,41 +1007,115 @@ void BetterChatDock::refreshBets()
 }
 
 // Crea la apuesta a partir del formulario, validando los campos mínimos.
+// Si falta algo, resalta en rojo el/los campos implicados.
 void BetterChatDock::onCreateBetClicked()
 {
+	clearBetFieldErrors();
 	const QString title = m_betTitle->text().trimmed();
+	QList<QLineEdit *> emptyOpts;
+	int filled = 0;
+	for (QLineEdit *e : m_betOptFields) {
+		if (e->text().trimmed().isEmpty())
+			emptyOpts << e;
+		else
+			++filled;
+	}
+	bool bad = false;
+	if (title.isEmpty()) {
+		markBetFieldError(m_betTitle);
+		bad = true;
+	}
+	if (filled < 2) {
+		// Faltan opciones: marcar las vacías (al menos las 2 primeras).
+		for (QLineEdit *e : emptyOpts)
+			markBetFieldError(e);
+		bad = true;
+	}
+	if (bad) {
+		m_betMsg->setText(QStringLiteral("Rellena los campos marcados en rojo."));
+		return;
+	}
 	QStringList opts;
 	for (QLineEdit *e : m_betOptFields) {
 		const QString v = e->text().trimmed();
 		if (!v.isEmpty())
 			opts << v;
 	}
-	if (title.isEmpty()) {
-		m_betMsg->setText(QStringLiteral("Escribe el título de la apuesta."));
-		return;
-	}
-	if (opts.size() < 2) {
-		m_betMsg->setText(QStringLiteral("Necesitas al menos dos opciones."));
-		return;
-	}
 	m_betMsg->setText(QStringLiteral("Creando apuesta..."));
 	m_api->createBet(title, opts, m_betDuration->currentData().toInt());
 }
 
+// Marca un campo como erróneo (borde rojo) hasta que el usuario lo edite.
+void BetterChatDock::markBetFieldError(QLineEdit *field)
+{
+	if (!field)
+		return;
+	field->setProperty("betError", true);
+	field->style()->unpolish(field);
+	field->style()->polish(field);
+	// Al empezar a escribir, quitar el estado de error.
+	connect(field, &QLineEdit::textEdited, this, [this, field]() {
+		if (field->property("betError").toBool()) {
+			field->setProperty("betError", false);
+			field->style()->unpolish(field);
+			field->style()->polish(field);
+		}
+	});
+}
+
+// Limpia el resaltado de error de todos los campos del formulario.
+void BetterChatDock::clearBetFieldErrors()
+{
+	QList<QLineEdit *> all = m_betOptFields;
+	all << m_betTitle;
+	for (QLineEdit *e : all) {
+		if (e && e->property("betError").toBool()) {
+			e->setProperty("betError", false);
+			e->style()->unpolish(e);
+			e->style()->polish(e);
+		}
+	}
+}
+
 // Añade un campo de opción al formulario (dinámico, como el "+ Añadir opción" web).
-// Tope de 20 opciones: al llegar, se desactiva el botón de añadir.
+// Tope de 20 opciones. Las opciones más allá de las 2 primeras llevan botón de
+// eliminar a la derecha (las 2 primeras son obligatorias, no se pueden quitar).
 void BetterChatDock::addBetOptionField(const QString &text)
 {
 	if (!m_betOptInputs || !m_betCreateForm)
 		return;
 	if (m_betOptFields.size() >= 20)
 		return;
-	auto *field = new QLineEdit(m_betCreateForm);
-	field->setPlaceholderText(
-		QStringLiteral("Opción %1").arg(m_betOptFields.size() + 1));
+	const int index = m_betOptFields.size();
+	// Fila: campo + (opcional) botón eliminar.
+	auto *row = new QWidget(m_betCreateForm);
+	auto *rh = new QHBoxLayout(row);
+	rh->setContentsMargins(0, 0, 0, 0);
+	rh->setSpacing(6);
+	auto *field = new QLineEdit(row);
+	field->setPlaceholderText(QStringLiteral("Opción %1").arg(index + 1));
 	if (!text.isEmpty())
 		field->setText(text);
-	m_betOptInputs->addWidget(field);
+	rh->addWidget(field, 1);
+	if (index >= 2) {
+		auto *del = new QPushButton(QStringLiteral("✕"), row);
+		del->setObjectName(QStringLiteral("betDelOpt"));
+		del->setCursor(Qt::PointingHandCursor);
+		del->setToolTip(QStringLiteral("Quitar esta opción"));
+		del->setFixedWidth(30);
+		connect(del, &QPushButton::clicked, this, [this, row, field]() {
+			m_betOptFields.removeOne(field);
+			row->deleteLater();
+			// Reactivar el botón de añadir y renumerar placeholders.
+			if (m_betAddOptBtn) {
+				m_betAddOptBtn->setEnabled(true);
+				m_betAddOptBtn->setText(QStringLiteral("+ Añadir opción"));
+			}
+			renumberBetOptions();
+		});
+		rh->addWidget(del, 0);
+	}
+	m_betOptInputs->addWidget(row);
 	m_betOptFields.append(field);
 	if (m_betAddOptBtn) {
 		const bool full = m_betOptFields.size() >= 20;
@@ -999,6 +1123,49 @@ void BetterChatDock::addBetOptionField(const QString &text)
 		m_betAddOptBtn->setText(full ? QStringLiteral("Máximo 20 opciones")
 					     : QStringLiteral("+ Añadir opción"));
 	}
+}
+
+// Renumera los placeholders "Opción N" tras eliminar una opción intermedia.
+void BetterChatDock::renumberBetOptions()
+{
+	int i = 1;
+	for (QLineEdit *e : m_betOptFields) {
+		if (e->text().trimmed().isEmpty())
+			e->setPlaceholderText(QStringLiteral("Opción %1").arg(i));
+		++i;
+	}
+}
+
+// Borra todas las filas de opción y deja el formulario con 2 opciones vacías.
+void BetterChatDock::resetBetOptions()
+{
+	for (QLineEdit *e : m_betOptFields) {
+		if (QWidget *rowW = e->parentWidget())
+			rowW->deleteLater();
+	}
+	m_betOptFields.clear();
+	if (m_betOptInputs) {
+		addBetOptionField();
+		addBetOptionField();
+	}
+}
+
+// Rellena el formulario de predicción con una pregunta y sus opciones (para el
+// botón "Repetir" del historial). Crea tantos campos como opciones haya.
+void BetterChatDock::fillBetForm(const QString &title, const QStringList &options)
+{
+	if (m_betTitle)
+		m_betTitle->setText(title);
+	clearBetFieldErrors();
+	// Vaciar y crear los campos justos para estas opciones (mínimo 2).
+	for (QLineEdit *e : m_betOptFields) {
+		if (QWidget *rowW = e->parentWidget())
+			rowW->deleteLater();
+	}
+	m_betOptFields.clear();
+	const int n = qMax(2, options.size());
+	for (int i = 0; i < n; ++i)
+		addBetOptionField(i < options.size() ? options.at(i) : QString());
 }
 
 // Refresca la UI con el estado de la apuesta activa (o el formulario si no hay).
@@ -1071,38 +1238,94 @@ void BetterChatDock::onControlState(const QByteArray &json)
 		m_activeBetStatus.clear();
 	}
 
-	// Reconstruir el historial de predicciones anteriores (bajo el formulario).
+	// Guardar el historial completo y pintar la página actual (5 por página).
 	if (m_betHistoryBox) {
-		while (QLayoutItem *it = m_betHistoryBox->takeAt(0)) {
-			if (it->widget())
-				it->widget()->deleteLater();
-			delete it;
-		}
 		const QJsonArray hist = root.value(QStringLiteral("history")).toArray();
-		for (const QJsonValue &hv : hist) {
-			const QJsonObject h = hv.toObject();
-			const QString htitle = h.value(QStringLiteral("title")).toString();
-			const bool cancelled = h.value(QStringLiteral("status")).toString()
-					       == QStringLiteral("cancelled");
-			const qint64 hbote = static_cast<qint64>(h.value(QStringLiteral("bote")).toDouble());
-			const int hn = h.value(QStringLiteral("numWagers")).toInt();
-			const QString win = h.value(QStringLiteral("winningLabel")).toString();
-			const QString result = cancelled
-				? QStringLiteral("Cancelada")
-				: (win.isEmpty() ? QStringLiteral("—")
-						 : QStringLiteral("Ganó: %1").arg(win));
-			auto *item = new QLabel(
-				QStringLiteral("%1\n%2  ·  %3 fichas  ·  %4 apostantes")
-					.arg(htitle, result).arg(hbote).arg(hn),
-				m_betHistory);
-			item->setObjectName(QStringLiteral("histItem"));
-			item->setWordWrap(true);
-			m_betHistoryBox->addWidget(item);
-		}
+		m_betHistoryData = hist;
 		m_lastHistoryCount = hist.size();
+		const int pages = (hist.size() + 4) / 5;
+		if (m_betHistoryPage >= pages)
+			m_betHistoryPage = pages > 0 ? pages - 1 : 0;
+		renderHistoryPage();
 	}
 
 	updateBetView();
+}
+
+// Pinta la página actual del historial (5 predicciones por página).
+void BetterChatDock::renderHistoryPage()
+{
+	if (!m_betHistoryBox)
+		return;
+	while (QLayoutItem *it = m_betHistoryBox->takeAt(0)) {
+		if (it->widget())
+			it->widget()->deleteLater();
+		delete it;
+	}
+	const int total = m_betHistoryData.size();
+	const int pages = (total + 4) / 5;
+	const int start = m_betHistoryPage * 5;
+	const int end = qMin(start + 5, total);
+	for (int i = start; i < end; ++i) {
+		const QJsonObject h = m_betHistoryData.at(i).toObject();
+		const QString htitle = h.value(QStringLiteral("title")).toString();
+		const bool cancelled = h.value(QStringLiteral("status")).toString()
+				       == QStringLiteral("cancelled");
+		const qint64 hbote = static_cast<qint64>(h.value(QStringLiteral("bote")).toDouble());
+		const int hn = h.value(QStringLiteral("numWagers")).toInt();
+		const QString win = h.value(QStringLiteral("winningLabel")).toString();
+		const QString result = cancelled
+			? QStringLiteral("Cancelada")
+			: (win.isEmpty() ? QStringLiteral("—")
+					 : QStringLiteral("Ganó: %1").arg(win));
+		QStringList optLabels;
+		for (const QJsonValue &lv : h.value(QStringLiteral("optionLabels")).toArray())
+			optLabels << lv.toString();
+
+		auto *item = new QFrame(m_betHistory);
+		item->setObjectName(QStringLiteral("histItem"));
+		item->setAttribute(Qt::WA_StyledBackground, true);
+		auto *ih = new QHBoxLayout(item);
+		ih->setContentsMargins(10, 7, 10, 7);
+		ih->setSpacing(6);
+		auto *txt = new QLabel(
+			QStringLiteral("%1\n%2  ·  %3 fichas  ·  %4 apostantes")
+				.arg(htitle, result).arg(hbote).arg(hn),
+			item);
+		txt->setObjectName(QStringLiteral("histText"));
+		txt->setWordWrap(true);
+		ih->addWidget(txt, 1);
+		if (optLabels.size() >= 2) {
+			auto *rep = new QPushButton(QStringLiteral("Repetir"), item);
+			rep->setObjectName(QStringLiteral("histRepeat"));
+			rep->setCursor(Qt::PointingHandCursor);
+			rep->setToolTip(QStringLiteral("Copiar esta pregunta y sus opciones al formulario"));
+			connect(rep, &QPushButton::clicked, this, [this, htitle, optLabels]() {
+				fillBetForm(htitle, optLabels);
+				if (m_betMsg)
+					m_betMsg->setText(QStringLiteral(
+						"Datos copiados. Revisa el tiempo y pulsa Crear apuesta."));
+			});
+			ih->addWidget(rep, 0);
+		}
+		m_betHistoryBox->addWidget(item);
+	}
+	// Etiqueta y botones de paginación.
+	if (m_betHistoryPageLbl)
+		m_betHistoryPageLbl->setText(
+			pages > 0 ? QStringLiteral("Página %1 de %2").arg(m_betHistoryPage + 1).arg(pages)
+				  : QString());
+	const bool multi = pages > 1;
+	if (m_betHistPrev) {
+		m_betHistPrev->setVisible(multi);
+		m_betHistPrev->setEnabled(m_betHistoryPage > 0);
+	}
+	if (m_betHistNext) {
+		m_betHistNext->setVisible(multi);
+		m_betHistNext->setEnabled(m_betHistoryPage < pages - 1);
+	}
+	if (m_betHistoryPageLbl)
+		m_betHistoryPageLbl->setVisible(multi);
 }
 
 // Decide qué zona mostrar según el estado: aviso (no plus), panel activo (hay
