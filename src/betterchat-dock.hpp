@@ -99,6 +99,7 @@ private:
 
 	// Vista logueado.
 	QLabel *m_brandTitle = nullptr; // logo "BetterChatTV" (pasa a "+" si es plus)
+	QWidget *m_topRow = nullptr;    // fila usuario + Dashboard + directo (se oculta en fullscreen)
 	QLabel *m_userLabel = nullptr;
 	QLabel *m_liveBadge = nullptr;
 	QListWidget *m_chatList = nullptr;

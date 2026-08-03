@@ -551,12 +551,15 @@ void BetterChatDock::buildUi()
 		outerV->setSpacing(10);
 
 		// Fila superior común a todas las pestañas: usuario + Dashboard + directo.
-		auto *row = new QHBoxLayout();
-		m_userLabel = new QLabel(page);
+		// Se envuelve en un QWidget (m_topRow) para poder ocultarla en fullscreen.
+		m_topRow = new QWidget(page);
+		auto *row = new QHBoxLayout(m_topRow);
+		row->setContentsMargins(0, 0, 0, 0);
+		m_userLabel = new QLabel(m_topRow);
 		m_userLabel->setObjectName(QStringLiteral("title"));
 		row->addWidget(m_userLabel, 1);
 		// Botón "Dashboard ↗" que abre el panel de BetterChatTV en el navegador.
-		auto *dashBtn = new QPushButton(QStringLiteral("Dashboard ↗"), page);
+		auto *dashBtn = new QPushButton(QStringLiteral("Dashboard ↗"), m_topRow);
 		dashBtn->setObjectName(QStringLiteral("accent"));
 		dashBtn->setCursor(Qt::PointingHandCursor);
 		connect(dashBtn, &QPushButton::clicked, this, [this]() {
@@ -566,11 +569,11 @@ void BetterChatDock::buildUi()
 			QDesktopServices::openUrl(QUrl(base + QStringLiteral("/dashboard")));
 		});
 		row->addWidget(dashBtn, 0);
-		m_liveBadge = new QLabel(page);
+		m_liveBadge = new QLabel(m_topRow);
 		m_liveBadge->setObjectName(QStringLiteral("liveOff"));
 		m_liveBadge->setText(QStringLiteral("No estás en directo"));
 		row->addWidget(m_liveBadge, 0, Qt::AlignRight);
-		outerV->addLayout(row);
+		outerV->addWidget(m_topRow);
 
 		// Stack de pestañas (lo cambia la nav bar).
 		m_tabStack = new QStackedWidget(page);
@@ -1718,6 +1721,7 @@ void BetterChatDock::toggleChatFullscreen()
 	const bool fs = m_chatFullscreen;
 	// Ocultar/mostrar todo lo que NO es el chat.
 	if (m_brandTitle) m_brandTitle->setVisible(!fs);
+	if (m_topRow) m_topRow->setVisible(!fs);
 	if (m_navBar) m_navBar->setVisible(!fs);
 	if (m_verLabel) m_verLabel->setVisible(!fs);
 	if (m_platBar) m_platBar->setVisible(!fs);
@@ -2143,7 +2147,10 @@ void BetterChatDock::onLoggedOut()
 void BetterChatDock::onStatusUpdated()
 {
 	QString name = m_api->username();
-	m_userLabel->setText(name.isEmpty() ? QStringLiteral("Tu cuenta") : name);
+	// El nombre de usuario se muestra con "@" al inicio (como en la web).
+	m_userLabel->setText(name.isEmpty()
+		? QStringLiteral("Tu cuenta")
+		: QStringLiteral("@%1").arg(name.startsWith(QLatin1Char('@')) ? name.mid(1) : name));
 	if (m_api->isLive()) {
 		QString plat = m_api->platform();
 		m_liveBadge->setObjectName(QStringLiteral("liveOn"));
