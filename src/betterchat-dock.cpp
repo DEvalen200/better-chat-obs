@@ -194,13 +194,22 @@ QPushButton#betDelOpt {
 	border-radius: 7px; font-size: 13px; font-weight: 700;
 }
 QPushButton#betDelOpt:hover { background: #ff5d6c; color: #ffffff; border-color: #ff5d6c; }
-/* Botón "Repetir" del historial */
+/* Botón "Copiar ajustes" del historial (recuadro oscuro, fuera del turquesa) */
+QFrame#histCard {
+	background: #1e141b; border: 1px solid #3a2833; border-radius: 14px;
+}
+QLabel#histTitle {
+	color: #b3a1ac; font-size: 11px; font-weight: 800; letter-spacing: 1px;
+}
 QPushButton#histRepeat {
-	background: #120b10; color: #ffffff; border: 0; border-radius: 7px;
+	background: #291b24; color: #f6eef3; border: 1px solid #3a2833; border-radius: 7px;
 	padding: 5px 11px; font-size: 11px; font-weight: 700;
 }
-QPushButton#histRepeat:hover { background: #2a1a24; }
-QLabel#histText { color: #134a4a; font-size: 11px; }
+QPushButton#histRepeat:hover { border-color: #ff7ec8; }
+QLabel#histText { color: #f6eef3; font-size: 11px; }
+QFrame#histItem {
+	background: #291b24; border: 1px solid #3a2833; border-radius: 8px;
+}
 QFrame#betsBlock QComboBox {
 	background: #ffffff; color: #120b10; border: 1px solid #159a9a;
 	border-radius: 7px; padding: 5px 8px; font-size: 12px;
@@ -267,11 +276,6 @@ QLabel#gameCardName { color: #120b10; font-size: 13px; font-weight: 800; }
 QFrame#gameCardSoon QLabel#gameCardName { color: #2a5555; }
 QLabel#gameCardDesc { color: #134a4a; font-size: 11px; }
 QFrame#gameCardSoon QLabel#gameCardDesc { color: #3a6a6a; }
-/* Historial: filas blancas (sólidas) */
-QLabel#histItem {
-	color: #134a4a; font-size: 11px; background: #d6f3f3;
-	border: 1px solid #6fc7c7; border-radius: 8px; padding: 8px 10px;
-}
 QPushButton#backBtn {
 	background: transparent; color: #b3a1ac; border: 1px solid #3a2833;
 	border-radius: 6px; padding: 4px 10px; font-size: 12px;
@@ -922,49 +926,6 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 	m_betCreate->setVisible(false); // oculto hasta elegir un tipo (vista por pantallas)
 	bp->addWidget(m_betCreate);
 
-	// ---- Historial de predicciones anteriores (bajo el formulario, como la web) ----
-	m_betHistory = new QWidget(tab);
-	auto *hv = new QVBoxLayout(m_betHistory);
-	hv->setContentsMargins(0, 6, 0, 0);
-	hv->setSpacing(6);
-	auto *ht = new QLabel(QStringLiteral("Predicciones anteriores"), m_betHistory);
-	ht->setObjectName(QStringLiteral("ytPickTitle"));
-	hv->addWidget(ht);
-	m_betHistoryBox = new QVBoxLayout();
-	m_betHistoryBox->setSpacing(5);
-	hv->addLayout(m_betHistoryBox);
-	// Controles de paginación (5 por página): anterior / X de Y / siguiente.
-	auto *pageRow = new QHBoxLayout();
-	pageRow->setSpacing(6);
-	m_betHistPrev = new QPushButton(QStringLiteral("‹ Anteriores"), m_betHistory);
-	m_betHistPrev->setObjectName(QStringLiteral("betGhost"));
-	m_betHistPrev->setCursor(Qt::PointingHandCursor);
-	connect(m_betHistPrev, &QPushButton::clicked, this, [this]() {
-		if (m_betHistoryPage > 0) {
-			--m_betHistoryPage;
-			renderHistoryPage();
-		}
-	});
-	pageRow->addWidget(m_betHistPrev, 0);
-	m_betHistoryPageLbl = new QLabel(QString(), m_betHistory);
-	m_betHistoryPageLbl->setObjectName(QStringLiteral("muted"));
-	m_betHistoryPageLbl->setAlignment(Qt::AlignCenter);
-	pageRow->addWidget(m_betHistoryPageLbl, 1);
-	m_betHistNext = new QPushButton(QStringLiteral("Siguientes ›"), m_betHistory);
-	m_betHistNext->setObjectName(QStringLiteral("betGhost"));
-	m_betHistNext->setCursor(Qt::PointingHandCursor);
-	connect(m_betHistNext, &QPushButton::clicked, this, [this]() {
-		const int pages = (m_betHistoryData.size() + 4) / 5;
-		if (m_betHistoryPage < pages - 1) {
-			++m_betHistoryPage;
-			renderHistoryPage();
-		}
-	});
-	pageRow->addWidget(m_betHistNext, 0);
-	hv->addLayout(pageRow);
-	m_betHistory->setVisible(false);
-	bp->addWidget(m_betHistory);
-
 	// ---- Panel de la apuesta en curso ----
 	m_betActive = new QWidget(tab);
 	auto *av = new QVBoxLayout(m_betActive);
@@ -1004,6 +965,51 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 	bp->addWidget(m_betMsg);
 
 	parent->addWidget(m_betsBlock);
+
+	// ---- Historial reciente: recuadro OSCURO PROPIO, fuera del turquesa (como la web) ----
+	m_betHistory = new QFrame(tab);
+	m_betHistory->setObjectName(QStringLiteral("histCard"));
+	m_betHistory->setAttribute(Qt::WA_StyledBackground, true);
+	auto *hv = new QVBoxLayout(m_betHistory);
+	hv->setContentsMargins(16, 14, 16, 14);
+	hv->setSpacing(8);
+	auto *ht = new QLabel(QStringLiteral("Historial reciente"), m_betHistory);
+	ht->setObjectName(QStringLiteral("histTitle"));
+	hv->addWidget(ht);
+	m_betHistoryBox = new QVBoxLayout();
+	m_betHistoryBox->setSpacing(5);
+	hv->addLayout(m_betHistoryBox);
+	// Controles de paginación (5 por página): anterior / X de Y / siguiente.
+	auto *pageRow = new QHBoxLayout();
+	pageRow->setSpacing(6);
+	m_betHistPrev = new QPushButton(QStringLiteral("‹ Anteriores"), m_betHistory);
+	m_betHistPrev->setObjectName(QStringLiteral("ghost"));
+	m_betHistPrev->setCursor(Qt::PointingHandCursor);
+	connect(m_betHistPrev, &QPushButton::clicked, this, [this]() {
+		if (m_betHistoryPage > 0) {
+			--m_betHistoryPage;
+			renderHistoryPage();
+		}
+	});
+	pageRow->addWidget(m_betHistPrev, 0);
+	m_betHistoryPageLbl = new QLabel(QString(), m_betHistory);
+	m_betHistoryPageLbl->setObjectName(QStringLiteral("muted"));
+	m_betHistoryPageLbl->setAlignment(Qt::AlignCenter);
+	pageRow->addWidget(m_betHistoryPageLbl, 1);
+	m_betHistNext = new QPushButton(QStringLiteral("Siguientes ›"), m_betHistory);
+	m_betHistNext->setObjectName(QStringLiteral("ghost"));
+	m_betHistNext->setCursor(Qt::PointingHandCursor);
+	connect(m_betHistNext, &QPushButton::clicked, this, [this]() {
+		const int pages = (m_betHistoryData.size() + 4) / 5;
+		if (m_betHistoryPage < pages - 1) {
+			++m_betHistoryPage;
+			renderHistoryPage();
+		}
+	});
+	pageRow->addWidget(m_betHistNext, 0);
+	hv->addLayout(pageRow);
+	m_betHistory->setVisible(false);
+	parent->addWidget(m_betHistory);
 	parent->addStretch(1);
 
 	// Señales del API + poll periódico del estado (cada 4s mientras el dock está vivo).
@@ -1329,7 +1335,7 @@ void BetterChatDock::renderHistoryPage()
 		txt->setWordWrap(true);
 		ih->addWidget(txt, 1);
 		if (optLabels.size() >= 2) {
-			auto *rep = new QPushButton(QStringLiteral("Repetir"), item);
+			auto *rep = new QPushButton(QStringLiteral("Copiar ajustes"), item);
 			rep->setObjectName(QStringLiteral("histRepeat"));
 			rep->setCursor(Qt::PointingHandCursor);
 			rep->setToolTip(QStringLiteral("Copiar esta pregunta y sus opciones al formulario"));
@@ -1404,11 +1410,12 @@ void BetterChatDock::updateBetView()
 		return;
 	}
 	if (m_lastHasBet) {
-		// Hay algo en marcha: solo el panel activo (no se puede salir).
+		// Hay algo en marcha: el panel activo (no se puede salir) + el historial
+		// debajo, igual que la web (recuadro propio, siempre visible si hay).
 		m_betGrid->setVisible(false);
 		m_betCreate->setVisible(false);
 		m_betActive->setVisible(true);
-		refreshHistoryVisibility(false);
+		refreshHistoryVisibility(true);
 		return;
 	}
 	if (m_pickedType == QStringLiteral("manual")) {
