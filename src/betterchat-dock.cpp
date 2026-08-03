@@ -210,8 +210,8 @@ QFrame#betsBlock QComboBox::drop-down {
 	width: 20px; border: 0;
 }
 QFrame#betsBlock QComboBox::down-arrow {
-	image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDEyIDEyIj48cGF0aCBkPSJNMiA0IEw2IDggTDEwIDQiIHN0cm9rZT0iIzEyMGIxMCIgc3Ryb2tlLXdpZHRoPSIyIiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48L3N2Zz4=);
-	width: 12px; height: 12px;
+	image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAAAO0lEQVR4nGNgGAXEAyFugf/EiDNhk0RXhE0cReO7rx8Y8SlGlmdkwAKwORdZE4aNuBSh8wkCXAE1xAAADjUZ5C5b0F8AAAAASUVORK5CYII=);
+	width: 14px; height: 14px;
 }
 /* Botón "Crear apuesta" y acciones principales: tinta oscura sólida */
 QFrame#betsBlock QPushButton#primary {
@@ -1098,11 +1098,13 @@ void BetterChatDock::addBetOptionField(const QString &text)
 		field->setText(text);
 	rh->addWidget(field, 1);
 	if (index >= 2) {
-		auto *del = new QPushButton(QStringLiteral("✕"), row);
+		auto *del = new QPushButton(row);
 		del->setObjectName(QStringLiteral("betDelOpt"));
 		del->setCursor(Qt::PointingHandCursor);
 		del->setToolTip(QStringLiteral("Quitar esta opción"));
-		del->setFixedWidth(30);
+		del->setFixedWidth(34);
+		del->setIcon(makeTrashIcon());
+		del->setIconSize(QSize(18, 18));
 		connect(del, &QPushButton::clicked, this, [this, row, field]() {
 			m_betOptFields.removeOne(field);
 			row->deleteLater();
@@ -1326,6 +1328,12 @@ void BetterChatDock::renderHistoryPage()
 	}
 	if (m_betHistoryPageLbl)
 		m_betHistoryPageLbl->setVisible(multi);
+	// Asegurar visibilidad coherente: si estamos en el formulario de predicción
+	// y hay historial, mostrarlo aunque este render llegue tarde (tras el poll).
+	if (m_betHistory) {
+		const bool inForm = m_betCreate && m_betCreate->isVisible();
+		m_betHistory->setVisible(inForm && total > 0);
+	}
 }
 
 // Decide qué zona mostrar según el estado: aviso (no plus), panel activo (hay
@@ -1548,6 +1556,33 @@ QIcon BetterChatDock::makeExpandIcon(bool expanded)
 		p.drawLine(a, b - L, a + L, b - L); p.drawLine(a + L, b - L, a + L, b);
 		p.drawLine(b, b - L, b - L, b - L); p.drawLine(b - L, b - L, b - L, b);
 	}
+	p.end();
+	return QIcon(pm);
+}
+
+// Icono de papelera dibujado con QPainter (color rojo err), para eliminar opción.
+QIcon BetterChatDock::makeTrashIcon()
+{
+	QPixmap pm(28, 28);
+	pm.fill(Qt::transparent);
+	QPainter p(&pm);
+	p.setRenderHint(QPainter::Antialiasing, true);
+	QPen pen(QColor("#ff5d6c"));
+	pen.setWidth(2);
+	pen.setCapStyle(Qt::RoundCap);
+	pen.setJoinStyle(Qt::RoundJoin);
+	p.setPen(pen);
+	// Tapa + asa.
+	p.drawLine(7, 9, 21, 9);          // borde de la tapa
+	p.drawLine(11, 9, 12, 6);         // asa izq
+	p.drawLine(12, 6, 16, 6);         // asa top
+	p.drawLine(16, 6, 17, 9);         // asa der
+	// Cubo (trapecio) + 2 rayas verticales.
+	p.drawLine(9, 9, 10, 22);
+	p.drawLine(19, 9, 18, 22);
+	p.drawLine(10, 22, 18, 22);
+	p.drawLine(12, 12, 12, 19);
+	p.drawLine(16, 12, 16, 19);
 	p.end();
 	return QIcon(pm);
 }

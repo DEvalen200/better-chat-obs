@@ -174,6 +174,7 @@ private:
 	QLabel *m_verLabel = nullptr;     // etiqueta de versión (para ocultar en fullscreen)
 	bool m_chatFullscreen = false;
 	QIcon makeExpandIcon(bool expanded);
+	QIcon makeTrashIcon();
 	void positionFsButton();
 	void toggleChatFullscreen();
 	void onPlatformStatus(const QString &platform, const QString &state, const QString &detail);
