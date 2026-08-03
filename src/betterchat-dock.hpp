@@ -26,6 +26,7 @@ class QTextEdit;
 class QVBoxLayout;
 class QComboBox;
 class QLineEdit;
+class QFrame;
 class QWidget;
 class QCheckBox;
 class QTimer;
@@ -128,6 +129,8 @@ private:
 	void refreshBets();                             // pide /api/control (poll)
 	void updateBetView();                           // decide qué zona mostrar (grid/crear/activo)
 	QWidget *m_betGrid = nullptr;      // galería de tipos de minijuego/apuesta
+	QFrame *m_betsBlock = nullptr;     // bloque turquesa contenedor (estética web)
+	QPushButton *m_betAddOptBtn = nullptr; // botón "+ Añadir opción" (tope 20)
 	QString m_pickedType;              // tipo elegido en el grid ("" | "manual")
 	bool m_lastIsPlus = false;         // último estado de control recibido
 	bool m_lastHasBet = false;
