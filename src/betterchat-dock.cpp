@@ -778,6 +778,8 @@ void BetterChatDock::buildUi()
 			tv->addWidget(m_multiStatus);
 
 			m_multiChat->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+			m_multiChat->setLineWrapMode(QTextEdit::WidgetWidth);
+			m_multiChat->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 			// Descarte NATIVO de bloques antiguos: al superar el tope, Qt borra el
 			// bloque más viejo automáticamente (mucho más barato que hacerlo con
 			// cursor). 1000 mensajes de historial sin coste de acumulación.
@@ -2060,6 +2062,11 @@ void BetterChatDock::fetchEmotesFor(const QString &html)
 			QImage img;
 			if (!img.loadFromData(rep->readAll()))
 				return;
+			// Escalar el emote a la altura de una línea de texto (~20px) para
+			// que no se muestre a tamaño natural (gigante). El <img> del backend
+			// no trae width/height, así que el tamaño lo fija el propio recurso.
+			if (img.height() > 20)
+				img = img.scaledToHeight(20, Qt::SmoothTransformation);
 			// Registrar la imagen con su URL como nombre de recurso y refrescar.
 			m_multiChat->document()->addResource(
 				QTextDocument::ImageResource, QUrl(url), QVariant(img));
