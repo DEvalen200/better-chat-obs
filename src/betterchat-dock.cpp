@@ -407,6 +407,11 @@ BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
 			m_navBar->setVisible(true);
 		m_api->startStatusPolling();
 		refreshChatList();
+		// Sesión ya activa al arrancar (p. ej. OBS reabierto): arrancar también
+		// el poll de apuestas y pedir el estado, igual que hace onLoggedIn.
+		if (m_betPollTimer)
+			m_betPollTimer->start();
+		refreshBets();
 	} else {
 		m_stack->setCurrentIndex(0);
 	}
