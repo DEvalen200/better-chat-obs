@@ -89,9 +89,11 @@ signals:
 	void statusError(const QString &message);
 	// Resultado de una acción de chat (test/clear): ok o mensaje de error.
 	void chatActionResult(bool ok, const QString &message);
-	// Multichat en vivo (SSE): un mensaje real de chat.
+	// Multichat en vivo (SSE): un mensaje real de chat. textHtml trae el texto
+	// con emotes/emojis como <img> (para renderizar emojis en el multichat).
 	void chatMessage(const QString &platform, const QString &platformLabel,
-			 const QString &author, const QString &text, const QString &color);
+			 const QString &author, const QString &text, const QString &color,
+			 const QString &textHtml);
 	// Evento destacado (bits/donacion, sub, regalo de sub, superchat, regalo TikTok...).
 	void chatEvent(const QString &platform, const QString &platformLabel,
 		       const QString &kind, const QString &actor, const QString &text,

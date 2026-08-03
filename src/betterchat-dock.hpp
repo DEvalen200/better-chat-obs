@@ -13,6 +13,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QWidget>
 #include <QList>
 #include <QHash>
+#include <QSet>
 #include <QJsonArray>
 
 struct calldata;
@@ -28,6 +29,7 @@ class QVBoxLayout;
 class QComboBox;
 class QLineEdit;
 class QFrame;
+class QNetworkAccessManager;
 class QWidget;
 class QCheckBox;
 class QTimer;
@@ -193,7 +195,13 @@ private:
 	void onYouTubeLiveList(const QByteArray &json);
 	void onYouTubeLiveError(const QString &message);
 	void onChatMessage(const QString &platform, const QString &platformLabel,
-			   const QString &author, const QString &text, const QString &color);
+			   const QString &author, const QString &text, const QString &color,
+			   const QString &textHtml);
+	// Descarga los emotes (<img>) de un mensaje y los registra en el documento del
+	// multichat para que se muestren; refresca el render al llegar cada imagen.
+	void fetchEmotesFor(const QString &html);
+	QNetworkAccessManager *m_emoteNet = nullptr;
+	QSet<QString> m_emoteFetched; // URLs ya pedidas (no repetir)
 	void onChatEvent(const QString &platform, const QString &platformLabel,
 			 const QString &kind, const QString &actor, const QString &text,
 			 int amount, const QString &unit);

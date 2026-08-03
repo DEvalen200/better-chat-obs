@@ -34,6 +34,10 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QPainterPath>
 #include <QScrollBar>
 #include <QTextOption>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QRegularExpression>
 #include <QAbstractItemView>
 #include <QHash>
 #include <QScrollArea>
@@ -558,6 +562,21 @@ void BetterChatDock::buildUi()
 		m_userLabel = new QLabel(m_topRow);
 		m_userLabel->setObjectName(QStringLiteral("title"));
 		row->addWidget(m_userLabel, 1);
+		// Botón "Sala ↗": abre la sala pública del usuario (/room/@usuario).
+		auto *salaBtn = new QPushButton(QStringLiteral("Sala ↗"), m_topRow);
+		salaBtn->setObjectName(QStringLiteral("accent"));
+		salaBtn->setCursor(Qt::PointingHandCursor);
+		salaBtn->setToolTip(QStringLiteral("Abrir tu sala en el navegador"));
+		connect(salaBtn, &QPushButton::clicked, this, [this]() {
+			QString base = m_api->baseUrl();
+			if (base.isEmpty())
+				base = QStringLiteral("https://betterchat.tv");
+			QString user = m_api->username();
+			if (user.startsWith(QLatin1Char('@')))
+				user = user.mid(1);
+			QDesktopServices::openUrl(QUrl(base + QStringLiteral("/room/@") + user));
+		});
+		row->addWidget(salaBtn, 0);
 		// Botón "Dashboard ↗" que abre el panel de BetterChatTV en el navegador.
 		auto *dashBtn = new QPushButton(QStringLiteral("Dashboard ↗"), m_topRow);
 		dashBtn->setObjectName(QStringLiteral("accent"));
@@ -1947,7 +1966,8 @@ void BetterChatDock::registerPlatformIcons()
 // Añade un mensaje del multichat en vivo: logo de plataforma + "autor:" + texto,
 // cada uno en su propia línea (bloque).
 void BetterChatDock::onChatMessage(const QString &platform, const QString &platformLabel,
-				   const QString &author, const QString &text, const QString &color)
+				   const QString &author, const QString &text, const QString &color,
+				   const QString &textHtml)
 {
 	if (!m_multiChat)
 		return;
@@ -1973,10 +1993,21 @@ void BetterChatDock::onChatMessage(const QString &platform, const QString &platf
 			       .arg(label);
 	}
 
+	// Cuerpo del mensaje: si el backend manda textHtml (con emotes/emojis como
+	// <img>), usarlo para que se vean los emojis; si no, texto plano escapado.
+	// Los emojis Unicode van en el propio texto y los pinta la fuente.
+	QString body;
+	if (!textHtml.isEmpty()) {
+		body = textHtml;
+		fetchEmotesFor(textHtml); // descargar las imagenes de emote (async)
+	} else {
+		body = text.toHtmlEscaped();
+	}
+
 	const QString html =
 		QStringLiteral("%1 <b style='color:%2'>%3:</b> "
 			       "<span style='color:#f6eef3'>%4</span>")
-			.arg(icon, nameColor, author.toHtmlEscaped(), text.toHtmlEscaped());
+			.arg(icon, nameColor, author.toHtmlEscaped(), body);
 
 	// Auto-scroll solo si ya estaba al fondo (no interrumpir si el usuario sube).
 	QScrollBar *sb = m_multiChat->verticalScrollBar();
@@ -1992,6 +2023,44 @@ void BetterChatDock::onChatMessage(const QString &platform, const QString &platf
 
 	if (atBottom)
 		sb->setValue(sb->maximum());
+}
+
+// Descarga las imagenes de emote (<img src=...>) de un mensaje y las registra como
+// recurso del documento del multichat, para que QTextEdit las muestre. Best-effort:
+// mientras no llega la imagen, se ve el texto alternativo; al llegar, se refresca.
+void BetterChatDock::fetchEmotesFor(const QString &html)
+{
+	if (!m_multiChat)
+		return;
+	if (!m_emoteNet)
+		m_emoteNet = new QNetworkAccessManager(this);
+	// Extraer las URLs http(s) de los src de <img>.
+	static const QRegularExpression re(
+		QStringLiteral("<img[^>]*\\bsrc=['\"](https?://[^'\"]+)['\"]"),
+		QRegularExpression::CaseInsensitiveOption);
+	auto it = re.globalMatch(html);
+	while (it.hasNext()) {
+		const QString url = it.next().captured(1);
+		if (url.isEmpty() || m_emoteFetched.contains(url))
+			continue;
+		m_emoteFetched.insert(url);
+		QNetworkRequest req((QUrl(url)));
+		req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+				 QNetworkRequest::NoLessSafeRedirectPolicy);
+		QNetworkReply *rep = m_emoteNet->get(req);
+		connect(rep, &QNetworkReply::finished, this, [this, rep, url]() {
+			rep->deleteLater();
+			if (rep->error() != QNetworkReply::NoError || !m_multiChat)
+				return;
+			QImage img;
+			if (!img.loadFromData(rep->readAll()))
+				return;
+			// Registrar la imagen con su URL como nombre de recurso y refrescar.
+			m_multiChat->document()->addResource(
+				QTextDocument::ImageResource, QUrl(url), QVariant(img));
+			m_multiChat->viewport()->update();
+		});
+	}
 }
 
 // Pinta un evento destacado (donación/sub/regalo...) como una línea resaltada con

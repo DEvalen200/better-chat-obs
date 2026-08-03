@@ -535,6 +535,7 @@ void BetterChatApi::processSseEvent(const QByteArray &block)
 	if (author.isEmpty())
 		author = m.value(QStringLiteral("username")).toString();
 	const QString text = m.value(QStringLiteral("text")).toString();
+	const QString textHtml = m.value(QStringLiteral("textHtml")).toString();
 	const QString color = m.value(QStringLiteral("color")).toString();
-	emit chatMessage(platform, label, author, text, color);
+	emit chatMessage(platform, label, author, text, color, textHtml);
 }
