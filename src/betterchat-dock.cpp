@@ -771,8 +771,8 @@ void BetterChatDock::buildUi()
 			m_multiChat->installEventFilter(this); // para reposicionar el botón al redimensionar
 			positionFsButton();
 
-			// Al PIE: ayuda + botón/panel para elegir el directo de YouTube.
-			buildYouTubePicker(tv);
+			// La conexión de YouTube es AUTOMÁTICA (se detecta el directo solo al
+			// transmitir), así que ya no hay selector manual de directo al pie.
 
 			m_tabStack->addWidget(tab); // índice 1
 		}
