@@ -206,6 +206,11 @@ QPushButton#histRepeat {
 	padding: 5px 11px; font-size: 11px; font-weight: 700;
 }
 QPushButton#histRepeat:hover { border-color: #ff7ec8; }
+QPushButton#histSummary {
+	background: #291b24; color: #f6eef3; border: 1px solid #3a2833; border-radius: 7px;
+	padding: 5px 11px; font-size: 11px; font-weight: 700;
+}
+QPushButton#histSummary:hover { border-color: #3ad9d9; }
 QLabel#histText { color: #f6eef3; font-size: 11px; }
 QFrame#histItem {
 	background: #291b24; border: 1px solid #3a2833; border-radius: 8px;
@@ -1307,16 +1312,22 @@ void BetterChatDock::renderHistoryPage()
 	const int end = qMin(start + 5, total);
 	for (int i = start; i < end; ++i) {
 		const QJsonObject h = m_betHistoryData.at(i).toObject();
+		const QString hid = h.value(QStringLiteral("id")).toString();
 		const QString htitle = h.value(QStringLiteral("title")).toString();
 		const bool cancelled = h.value(QStringLiteral("status")).toString()
 				       == QStringLiteral("cancelled");
 		const qint64 hbote = static_cast<qint64>(h.value(QStringLiteral("bote")).toDouble());
 		const int hn = h.value(QStringLiteral("numWagers")).toInt();
 		const QString win = h.value(QStringLiteral("winningLabel")).toString();
-		const QString result = cancelled
-			? QStringLiteral("Cancelada")
-			: (win.isEmpty() ? QStringLiteral("—")
-					 : QStringLiteral("Ganó: %1").arg(win));
+		// Resultado con color como la web: Cancelada en rojo, ganador en verde.
+		QString resultHtml;
+		if (cancelled)
+			resultHtml = QStringLiteral("<span style='color:#ff5d6c;'>Cancelada</span>");
+		else if (win.isEmpty())
+			resultHtml = QStringLiteral("<span style='color:#b3a1ac;'>—</span>");
+		else
+			resultHtml = QStringLiteral("<span style='color:#3ad07a;'>✓ %1</span>")
+					     .arg(win.toHtmlEscaped());
 		QStringList optLabels;
 		for (const QJsonValue &lv : h.value(QStringLiteral("optionLabels")).toArray())
 			optLabels << lv.toString();
@@ -1324,29 +1335,50 @@ void BetterChatDock::renderHistoryPage()
 		auto *item = new QFrame(m_betHistory);
 		item->setObjectName(QStringLiteral("histItem"));
 		item->setAttribute(Qt::WA_StyledBackground, true);
-		auto *ih = new QHBoxLayout(item);
-		ih->setContentsMargins(10, 7, 10, 7);
-		ih->setSpacing(6);
-		auto *txt = new QLabel(
-			QStringLiteral("%1\n%2  ·  %3 fichas  ·  %4 apostantes")
-				.arg(htitle, result).arg(hbote).arg(hn),
-			item);
+		auto *iv = new QVBoxLayout(item);
+		iv->setContentsMargins(10, 7, 10, 7);
+		iv->setSpacing(5);
+		// Línea 1: título + resultado (con color) + meta.
+		auto *txt = new QLabel(item);
 		txt->setObjectName(QStringLiteral("histText"));
+		txt->setTextFormat(Qt::RichText);
 		txt->setWordWrap(true);
-		ih->addWidget(txt, 1);
+		txt->setText(QStringLiteral("<b>%1</b><br>%2 &nbsp;·&nbsp; %3 fichas &nbsp;·&nbsp; %4 apostantes")
+				     .arg(htitle.toHtmlEscaped(), resultHtml).arg(hbote).arg(hn));
+		iv->addWidget(txt);
+		// Línea 2: acciones (Ver resumen + Copiar ajustes).
+		auto *actRow = new QHBoxLayout();
+		actRow->setSpacing(6);
+		actRow->addStretch(1);
+		auto *sumBtn = new QPushButton(QStringLiteral(" Ver resumen"), item);
+		sumBtn->setObjectName(QStringLiteral("histSummary"));
+		sumBtn->setCursor(Qt::PointingHandCursor);
+		sumBtn->setIcon(makeChartIcon());
+		sumBtn->setIconSize(QSize(14, 14));
+		sumBtn->setToolTip(QStringLiteral("Ver el resumen de resultados en el navegador"));
+		connect(sumBtn, &QPushButton::clicked, this, [this, hid]() {
+			QDesktopServices::openUrl(QUrl(m_api->baseUrl() +
+						       QStringLiteral("/control?summary=") + hid));
+		});
+		actRow->addWidget(sumBtn, 0);
 		if (optLabels.size() >= 2) {
-			auto *rep = new QPushButton(QStringLiteral("Copiar ajustes"), item);
+			auto *rep = new QPushButton(QStringLiteral(" Copiar ajustes"), item);
 			rep->setObjectName(QStringLiteral("histRepeat"));
 			rep->setCursor(Qt::PointingHandCursor);
+			rep->setIcon(makeCopyIcon());
+			rep->setIconSize(QSize(14, 14));
 			rep->setToolTip(QStringLiteral("Copiar esta pregunta y sus opciones al formulario"));
 			connect(rep, &QPushButton::clicked, this, [this, htitle, optLabels]() {
 				fillBetForm(htitle, optLabels);
+				m_pickedType = QStringLiteral("manual");
+				updateBetView();
 				if (m_betMsg)
 					m_betMsg->setText(QStringLiteral(
 						"Datos copiados. Revisa el tiempo y pulsa Crear apuesta."));
 			});
-			ih->addWidget(rep, 0);
+			actRow->addWidget(rep, 0);
 		}
+		iv->addLayout(actRow);
 		m_betHistoryBox->addWidget(item);
 	}
 	// Etiqueta y botones de paginación.
@@ -1387,7 +1419,7 @@ void BetterChatDock::updateBetView()
 		m_betGrid->setVisible(true);
 		m_betCreate->setVisible(false);
 		m_betActive->setVisible(false);
-		refreshHistoryVisibility(true);
+		refreshHistoryVisibility(false);
 		return;
 	}
 	// Si aún no hay datos pero eligió un tipo, asumimos que puede usarlo (el
@@ -1397,7 +1429,7 @@ void BetterChatDock::updateBetView()
 		m_betGrid->setVisible(m_pickedType.isEmpty());
 		m_betCreate->setVisible(m_pickedType == QStringLiteral("manual"));
 		m_betActive->setVisible(false);
-		refreshHistoryVisibility(true);
+		refreshHistoryVisibility(m_pickedType == QStringLiteral("manual"));
 		return;
 	}
 	const bool plus = m_lastIsPlus;
@@ -1426,11 +1458,12 @@ void BetterChatDock::updateBetView()
 		refreshHistoryVisibility(true);
 		return;
 	}
-	// Por defecto: la galería de tipos (con historial debajo).
+	// Por defecto: la galería de tipos (SIN historial; el historial es de
+	// predicciones, solo se muestra dentro de Predicción / apuesta activa).
 	m_betGrid->setVisible(true);
 	m_betCreate->setVisible(false);
 	m_betActive->setVisible(false);
-	refreshHistoryVisibility(true);
+	refreshHistoryVisibility(false);
 }
 
 // Cambia la pestaña activa del dock (nav bar) y marca el botón correspondiente.
@@ -1617,6 +1650,52 @@ QIcon BetterChatDock::makeTrashIcon()
 	p.drawLine(10, 22, 18, 22);
 	p.drawLine(12, 12, 12, 19);
 	p.drawLine(16, 12, 16, 19);
+	p.end();
+	return QIcon(pm);
+}
+
+// Icono de gráfico de barras (Ver resumen), QPainter.
+QIcon BetterChatDock::makeChartIcon()
+{
+	QPixmap pm(28, 28);
+	pm.fill(Qt::transparent);
+	QPainter p(&pm);
+	p.setRenderHint(QPainter::Antialiasing, true);
+	QPen pen(QColor("#f6eef3"));
+	pen.setWidth(2);
+	pen.setCapStyle(Qt::RoundCap);
+	pen.setJoinStyle(Qt::RoundJoin);
+	p.setPen(pen);
+	// Ejes.
+	p.drawLine(6, 5, 6, 22);
+	p.drawLine(6, 22, 23, 22);
+	// Barras.
+	p.drawLine(11, 22, 11, 15);
+	p.drawLine(16, 22, 16, 10);
+	p.drawLine(21, 22, 21, 17);
+	p.end();
+	return QIcon(pm);
+}
+
+// Icono de copiar (dos hojas superpuestas), QPainter.
+QIcon BetterChatDock::makeCopyIcon()
+{
+	QPixmap pm(28, 28);
+	pm.fill(Qt::transparent);
+	QPainter p(&pm);
+	p.setRenderHint(QPainter::Antialiasing, true);
+	QPen pen(QColor("#f6eef3"));
+	pen.setWidth(2);
+	pen.setCapStyle(Qt::RoundCap);
+	pen.setJoinStyle(Qt::RoundJoin);
+	p.setPen(pen);
+	// Hoja delantera.
+	p.drawRoundedRect(11, 11, 11, 12, 2, 2);
+	// Hoja trasera (parte visible en forma de L).
+	p.drawLine(8, 17, 6, 17);
+	p.drawLine(6, 17, 6, 6);
+	p.drawLine(6, 6, 16, 6);
+	p.drawLine(16, 6, 16, 8);
 	p.end();
 	return QIcon(pm);
 }

@@ -175,6 +175,8 @@ private:
 	bool m_chatFullscreen = false;
 	QIcon makeExpandIcon(bool expanded);
 	QIcon makeTrashIcon();
+	QIcon makeChartIcon();
+	QIcon makeCopyIcon();
 	void positionFsButton();
 	void toggleChatFullscreen();
 	void onPlatformStatus(const QString &platform, const QString &state, const QString &detail);
