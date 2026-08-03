@@ -91,6 +91,11 @@ QPushButton#accent {
 }
 QPushButton#accent:hover { background: #57e2e2; }
 QPushButton#accent:disabled { background: #275555; color: #6f9191; }
+QPushButton#roomBtn {
+	background: #ff7ec8; color: #2a0018; border: 0; border-radius: 8px;
+	padding: 7px 12px; font-weight: 700;
+}
+QPushButton#roomBtn:hover { background: #ff97d3; }
 QPushButton#danger {
 	background: #ff5d6c; color: #2a0006; border: 0; border-radius: 8px;
 	padding: 7px 12px; font-weight: 700;
@@ -564,7 +569,7 @@ void BetterChatDock::buildUi()
 		row->addWidget(m_userLabel, 1);
 		// Botón "Sala ↗": abre la sala pública del usuario (/room/@usuario).
 		auto *salaBtn = new QPushButton(QStringLiteral("Sala ↗"), m_topRow);
-		salaBtn->setObjectName(QStringLiteral("accent"));
+		salaBtn->setObjectName(QStringLiteral("roomBtn"));
 		salaBtn->setCursor(Qt::PointingHandCursor);
 		salaBtn->setToolTip(QStringLiteral("Abrir tu sala en el navegador"));
 		connect(salaBtn, &QPushButton::clicked, this, [this]() {
