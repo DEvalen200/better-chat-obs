@@ -8,7 +8,7 @@ Unicode true
 
 !define PLUGIN_NAME "BetterChatTV para OBS"
 !define PLUGIN_ID   "betterchat-obs"
-!define PLUGIN_VER  "0.11.2"
+!define PLUGIN_VER  "0.11.3"
 !define PUBLISHER   "BetterChatTV"
 !define WEBSITE     "https://betterchat.tv"
 

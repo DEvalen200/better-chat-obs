@@ -221,10 +221,9 @@ QLabel#betLockPill {
 	background: rgba(18,11,16,0.12); color: #120b10; border-radius: 999px;
 	padding: 3px 10px; font-size: 11px; font-weight: 700;
 }
-/* Fila de opción (pill blanca translúcida con etiqueta + agregados) */
+/* Fila de opción (pill blanca sólida con etiqueta + agregados) */
 QFrame#betOpt {
-	background: rgba(255,255,255,0.6); border: 1px solid rgba(18,11,16,0.16);
-	border-radius: 9px;
+	background: #ffffff; border: 1px solid #159a9a; border-radius: 9px;
 }
 QLabel#betOptLabel { color: #120b10; font-size: 13px; font-weight: 600; }
 QLabel#betOptAgg { color: #134a4a; font-size: 11px; }
@@ -232,22 +231,23 @@ QPushButton#betWin {
 	background: #3ad07a; color: #0b0c10; border: 0; border-radius: 7px;
 	padding: 5px 10px; font-size: 11px; font-weight: 700;
 }
-/* Tarjetas de la galería: blancas sobre turquesa (como la web) */
+/* Tarjetas de la galería: blancas sobre turquesa (bordes SÓLIDOS, no rgba: en Qt
+   los bordes translúcidos redondeados se ven borrosos/lavados) */
 QFrame#gameCard {
-	background: #ffffff; border: 2px solid rgba(18,11,16,0.16); border-radius: 12px;
+	background: #ffffff; border: 2px solid #159a9a; border-radius: 12px;
 }
-QFrame#gameCard:hover { border-color: rgba(18,11,16,0.9); }
+QFrame#gameCard:hover { border-color: #0b2b2b; }
 QFrame#gameCardSoon {
-	background: rgba(255,255,255,0.5); border: 2px solid rgba(18,11,16,0.12); border-radius: 12px;
+	background: #d6f3f3; border: 2px solid #6fc7c7; border-radius: 12px;
 }
 QLabel#gameCardName { color: #120b10; font-size: 13px; font-weight: 800; }
-QFrame#gameCardSoon QLabel#gameCardName { color: #134a4a; }
+QFrame#gameCardSoon QLabel#gameCardName { color: #2a5555; }
 QLabel#gameCardDesc { color: #134a4a; font-size: 11px; }
 QFrame#gameCardSoon QLabel#gameCardDesc { color: #3a6a6a; }
-/* Historial: filas blancas translúcidas */
+/* Historial: filas blancas (sólidas) */
 QLabel#histItem {
-	color: #134a4a; font-size: 11px; background: rgba(255,255,255,0.5);
-	border: 1px solid rgba(18,11,16,0.14); border-radius: 8px; padding: 8px 10px;
+	color: #134a4a; font-size: 11px; background: #d6f3f3;
+	border: 1px solid #6fc7c7; border-radius: 8px; padding: 8px 10px;
 }
 QPushButton#backBtn {
 	background: transparent; color: #b3a1ac; border: 1px solid #3a2833;
