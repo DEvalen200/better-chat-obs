@@ -207,12 +207,9 @@ QFrame#betsBlock QComboBox {
 }
 QFrame#betsBlock QComboBox::drop-down {
 	subcontrol-origin: padding; subcontrol-position: center right;
-	width: 20px; border: 0;
+	width: 22px; border: 0;
 }
-QFrame#betsBlock QComboBox::down-arrow {
-	image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAAAO0lEQVR4nGNgGAXEAyFugf/EiDNhk0RXhE0cReO7rx8Y8SlGlmdkwAKwORdZE4aNuBSh8wkCXAE1xAAADjUZ5C5b0F8AAAAASUVORK5CYII=);
-	width: 14px; height: 14px;
-}
+QFrame#betsBlock QComboBox::down-arrow { image: none; width: 0; height: 0; }
 /* Botón "Crear apuesta" y acciones principales: tinta oscura sólida */
 QFrame#betsBlock QPushButton#primary {
 	background: #120b10; color: #ffffff; border: 0; border-radius: 8px;
@@ -342,6 +339,35 @@ protected:
 			p.drawText(tr, Qt::AlignVCenter | Qt::AlignLeft, text());
 		}
 	}
+};
+
+// QComboBox que dibuja su propia flecha con QPainter (Qt no rasteriza SVG en QSS
+// y el PNG-en-QSS tampoco se ve en algunos OBS; QPainter es lo único fiable).
+class ArrowComboBox : public QComboBox {
+public:
+	explicit ArrowComboBox(QWidget *parent = nullptr) : QComboBox(parent) {}
+	void setArrowColor(const QColor &c) { m_arrow = c; }
+
+protected:
+	void paintEvent(QPaintEvent *ev) override
+	{
+		QComboBox::paintEvent(ev);
+		QPainter p(this);
+		p.setRenderHint(QPainter::Antialiasing, true);
+		QPen pen(m_arrow);
+		pen.setWidth(2);
+		pen.setCapStyle(Qt::RoundCap);
+		pen.setJoinStyle(Qt::RoundJoin);
+		p.setPen(pen);
+		// Chevron hacia abajo, centrado verticalmente y pegado a la derecha.
+		const int cx = width() - 16;
+		const int cy = height() / 2;
+		p.drawLine(cx - 4, cy - 2, cx, cy + 2);
+		p.drawLine(cx, cy + 2, cx + 4, cy - 2);
+	}
+
+private:
+	QColor m_arrow{"#120b10"};
 };
 
 BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
@@ -875,7 +901,7 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 	auto *durLbl = new QLabel(QStringLiteral("Cierre automático:"), m_betCreate);
 	durLbl->setObjectName(QStringLiteral("muted"));
 	durRow->addWidget(durLbl, 0);
-	m_betDuration = new QComboBox(m_betCreate);
+	m_betDuration = new ArrowComboBox(m_betCreate);
 	m_betDuration->addItem(QStringLiteral("Sin límite"), 0);
 	m_betDuration->addItem(QStringLiteral("1 min"), 60);
 	m_betDuration->addItem(QStringLiteral("2 min"), 120);
@@ -1328,12 +1354,6 @@ void BetterChatDock::renderHistoryPage()
 	}
 	if (m_betHistoryPageLbl)
 		m_betHistoryPageLbl->setVisible(multi);
-	// Asegurar visibilidad coherente: si estamos en el formulario de predicción
-	// y hay historial, mostrarlo aunque este render llegue tarde (tras el poll).
-	if (m_betHistory) {
-		const bool inForm = m_betCreate && m_betCreate->isVisible();
-		m_betHistory->setVisible(inForm && total > 0);
-	}
 }
 
 // Decide qué zona mostrar según el estado: aviso (no plus), panel activo (hay
@@ -1341,10 +1361,12 @@ void BetterChatDock::renderHistoryPage()
 // o la galería de tipos por defecto.
 void BetterChatDock::updateBetView()
 {
-	// Helper local: el historial se muestra bajo el formulario de predicción.
-	auto showHistory = [this](bool inForm) {
+	// El historial (como en la web) se muestra SIEMPRE que: eres plus, hay
+	// historial, y NO hay una apuesta activa en curso (en la galería y en el
+	// formulario). No depende de la pantalla concreta.
+	auto refreshHistoryVisibility = [this](bool allowed) {
 		if (m_betHistory)
-			m_betHistory->setVisible(inForm && m_lastHistoryCount > 0);
+			m_betHistory->setVisible(allowed && m_lastHistoryCount > 0);
 	};
 	// Antes de recibir el primer estado del servidor, mostramos la galería (sin
 	// aviso de gate) para no dar un falso "requiere plus"... salvo que el usuario
@@ -1354,7 +1376,7 @@ void BetterChatDock::updateBetView()
 		m_betGrid->setVisible(true);
 		m_betCreate->setVisible(false);
 		m_betActive->setVisible(false);
-		showHistory(false);
+		refreshHistoryVisibility(true);
 		return;
 	}
 	// Si aún no hay datos pero eligió un tipo, asumimos que puede usarlo (el
@@ -1364,7 +1386,7 @@ void BetterChatDock::updateBetView()
 		m_betGrid->setVisible(m_pickedType.isEmpty());
 		m_betCreate->setVisible(m_pickedType == QStringLiteral("manual"));
 		m_betActive->setVisible(false);
-		showHistory(m_pickedType == QStringLiteral("manual"));
+		refreshHistoryVisibility(true);
 		return;
 	}
 	const bool plus = m_lastIsPlus;
@@ -1373,7 +1395,7 @@ void BetterChatDock::updateBetView()
 		m_betGrid->setVisible(false);
 		m_betCreate->setVisible(false);
 		m_betActive->setVisible(false);
-		showHistory(false);
+		refreshHistoryVisibility(false);
 		return;
 	}
 	if (m_lastHasBet) {
@@ -1381,7 +1403,7 @@ void BetterChatDock::updateBetView()
 		m_betGrid->setVisible(false);
 		m_betCreate->setVisible(false);
 		m_betActive->setVisible(true);
-		showHistory(false);
+		refreshHistoryVisibility(false);
 		return;
 	}
 	if (m_pickedType == QStringLiteral("manual")) {
@@ -1389,14 +1411,14 @@ void BetterChatDock::updateBetView()
 		m_betGrid->setVisible(false);
 		m_betCreate->setVisible(true);
 		m_betActive->setVisible(false);
-		showHistory(true);
+		refreshHistoryVisibility(true);
 		return;
 	}
-	// Por defecto: la galería de tipos.
+	// Por defecto: la galería de tipos (con historial debajo).
 	m_betGrid->setVisible(true);
 	m_betCreate->setVisible(false);
 	m_betActive->setVisible(false);
-	showHistory(false);
+	refreshHistoryVisibility(true);
 }
 
 // Cambia la pestaña activa del dock (nav bar) y marca el botón correspondiente.
