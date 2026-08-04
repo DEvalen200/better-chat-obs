@@ -1026,6 +1026,9 @@ QWidget *BetterChatDock::buildBetsTabEmbedded()
 		return nullptr;
 	}
 	m_betsEmbed = w;
+	// Permitir que window.open(_blank) del panel (p.ej. "Ver resumen" del historial)
+	// se enrute al navegador del sistema, donde el streamer ya tiene sesión.
+	w->allowAllPopups(true);
 	obs_log(LOG_INFO, "[betterchat] apuestas en modo WEB EMBEBIDA (QCef v%d)", obs_browser_qcef_version());
 	loadBetsEmbedUrl();
 	return w; // el navegador es la pestaña; el botón Recargar vive en el pie del dock
