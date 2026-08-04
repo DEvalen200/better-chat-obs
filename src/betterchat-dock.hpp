@@ -28,6 +28,7 @@ class QTextEdit;
 class QVBoxLayout;
 class QComboBox;
 class QLineEdit;
+class QScrollArea;
 class QFrame;
 class QNetworkAccessManager;
 class QWidget;
