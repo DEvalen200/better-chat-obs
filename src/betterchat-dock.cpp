@@ -573,7 +573,7 @@ void BetterChatDock::buildUi()
 		salaBtn->setCursor(Qt::PointingHandCursor);
 		salaBtn->setToolTip(QStringLiteral("Abrir tu sala en el navegador"));
 		salaBtn->setIcon(makeExternalLinkIcon(QColor("#2a0018")));
-		salaBtn->setIconSize(QSize(15, 15));
+		salaBtn->setIconSize(QSize(16, 16));
 		salaBtn->setLayoutDirection(Qt::RightToLeft); // icono a la DERECHA del texto
 		connect(salaBtn, &QPushButton::clicked, this, [this]() {
 			QString base = m_api->baseUrl();
@@ -590,7 +590,7 @@ void BetterChatDock::buildUi()
 		dashBtn->setObjectName(QStringLiteral("accent"));
 		dashBtn->setCursor(Qt::PointingHandCursor);
 		dashBtn->setIcon(makeExternalLinkIcon(QColor("#0b2b2b")));
-		dashBtn->setIconSize(QSize(15, 15));
+		dashBtn->setIconSize(QSize(16, 16));
 		dashBtn->setLayoutDirection(Qt::RightToLeft); // icono a la DERECHA del texto
 		connect(dashBtn, &QPushButton::clicked, this, [this]() {
 			QString base = m_api->baseUrl();
@@ -1539,10 +1539,13 @@ void BetterChatDock::buildPlatformBar(QVBoxLayout *parent)
 	h->addStretch(1);
 	// Botón de ajustes: abre la sección de conexiones de "Configura tu chat" en el
 	// navegador (reutiliza toda la gestión de conexiones de la web).
-	auto *cfgBtn = new QPushButton(QStringLiteral("Conexiones ↗"), m_platBar);
+	auto *cfgBtn = new QPushButton(QStringLiteral("Conexiones"), m_platBar);
 	cfgBtn->setObjectName(QStringLiteral("connBtn"));
 	cfgBtn->setCursor(Qt::PointingHandCursor);
 	cfgBtn->setToolTip(QStringLiteral("Gestionar las conexiones de plataformas"));
+	cfgBtn->setIcon(makeExternalLinkIcon(QColor("#0b2b2b")));
+	cfgBtn->setIconSize(QSize(14, 14));
+	cfgBtn->setLayoutDirection(Qt::RightToLeft); // icono a la DERECHA del texto
 	connect(cfgBtn, &QPushButton::clicked, this, [this]() {
 		QString base = m_api->baseUrl();
 		if (base.isEmpty())
@@ -1629,31 +1632,43 @@ void BetterChatDock::buildYouTubePicker(QVBoxLayout *parent)
 	});
 }
 
-// Icono "abrir en el navegador" estilo Lucide external-link: un recuadro con la
-// esquina superior derecha abierta + una flecha diagonal saliente hacia arriba-dcha.
+// Icono "abrir en el navegador" estilo Lucide external-link: recuadro con la
+// esquina superior-derecha abierta + flecha diagonal saliente. Se dibuja en un
+// lienzo lógico de 24x24 y se rasteriza a la densidad real de la pantalla
+// (devicePixelRatio) para que NO salga borroso en pantallas HiDPI.
 QIcon BetterChatDock::makeExternalLinkIcon(const QColor &color)
 {
-	QPixmap pm(30, 30);
+	const qreal dpr = devicePixelRatioF() > 0.0 ? devicePixelRatioF() : 1.0;
+	const int S = 16; // tamaño lógico del icono en el botón
+	QPixmap pm(qRound(S * dpr), qRound(S * dpr));
+	pm.setDevicePixelRatio(dpr);
 	pm.fill(Qt::transparent);
 	QPainter p(&pm);
 	p.setRenderHint(QPainter::Antialiasing, true);
+	p.scale(S / 24.0, S / 24.0); // dibujar en rejilla de diseño 24x24
 	QPen pen(color);
-	pen.setWidth(2);
+	pen.setWidthF(2.2);
 	pen.setCapStyle(Qt::RoundCap);
 	pen.setJoinStyle(Qt::RoundJoin);
 	p.setPen(pen);
-	// Recuadro con la esquina superior-derecha ABIERTA (deja hueco para la flecha).
-	// Trazamos el borde como una polilínea que empieza y acaba en ese hueco.
-	// Caja de 6..24; la abertura está en el lado superior (x>=15) y derecho (y<=15).
-	p.drawLine(15, 6, 8, 6);    // borde superior (parte izquierda)
-	p.drawLine(8, 6, 6, 8);     // esquina sup-izq redondeada (aprox)
-	p.drawLine(6, 8, 6, 22);    // lado izquierdo
-	p.drawLine(6, 22, 24, 22);  // borde inferior
-	p.drawLine(24, 22, 24, 15); // lado derecho (parte baja)
-	// Flecha diagonal saliente hacia la esquina superior-derecha.
-	p.drawLine(13, 17, 24, 6);  // asta
-	p.drawLine(18, 6, 24, 6);   // punta: lado horizontal
-	p.drawLine(24, 6, 24, 12);  // punta: lado vertical
+	// Recuadro (path abierto arriba-derecha), geometría de Lucide external-link.
+	QPainterPath box;
+	box.moveTo(11, 6);
+	box.lineTo(5, 6);
+	box.lineTo(3, 8);
+	box.lineTo(3, 19);
+	box.lineTo(5, 21);
+	box.lineTo(16, 21);
+	box.lineTo(18, 19);
+	box.lineTo(18, 13);
+	p.drawPath(box);
+	// Flecha diagonal saliente + su punta.
+	p.drawLine(QPointF(10, 14), QPointF(21, 3));
+	QPainterPath tip;
+	tip.moveTo(15, 3);
+	tip.lineTo(21, 3);
+	tip.lineTo(21, 9);
+	p.drawPath(tip);
 	p.end();
 	return QIcon(pm);
 }
