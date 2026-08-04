@@ -180,6 +180,9 @@ private:
 	QIcon makeTrashIcon();
 	QIcon makeChartIcon();
 	QIcon makeCopyIcon();
+	// Icono "abrir en el navegador" (recuadro con flecha saliente, estilo Lucide
+	// external-link). color = trazo; para botones Sala/Dashboard del dock.
+	QIcon makeExternalLinkIcon(const QColor &color);
 	void positionFsButton();
 	void toggleChatFullscreen();
 	void onPlatformStatus(const QString &platform, const QString &state, const QString &detail);

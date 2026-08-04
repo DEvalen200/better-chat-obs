@@ -567,11 +567,14 @@ void BetterChatDock::buildUi()
 		m_userLabel = new QLabel(m_topRow);
 		m_userLabel->setObjectName(QStringLiteral("title"));
 		row->addWidget(m_userLabel, 1);
-		// Botón "Sala ↗": abre la sala pública del usuario (/room/@usuario).
-		auto *salaBtn = new QPushButton(QStringLiteral("Sala ↗"), m_topRow);
+		// Botón "Sala": abre la sala pública del usuario (/room/@usuario).
+		auto *salaBtn = new QPushButton(QStringLiteral("Sala"), m_topRow);
 		salaBtn->setObjectName(QStringLiteral("roomBtn"));
 		salaBtn->setCursor(Qt::PointingHandCursor);
 		salaBtn->setToolTip(QStringLiteral("Abrir tu sala en el navegador"));
+		salaBtn->setIcon(makeExternalLinkIcon(QColor("#2a0018")));
+		salaBtn->setIconSize(QSize(15, 15));
+		salaBtn->setLayoutDirection(Qt::RightToLeft); // icono a la DERECHA del texto
 		connect(salaBtn, &QPushButton::clicked, this, [this]() {
 			QString base = m_api->baseUrl();
 			if (base.isEmpty())
@@ -582,10 +585,13 @@ void BetterChatDock::buildUi()
 			QDesktopServices::openUrl(QUrl(base + QStringLiteral("/room/@") + user));
 		});
 		row->addWidget(salaBtn, 0);
-		// Botón "Dashboard ↗" que abre el panel de BetterChatTV en el navegador.
-		auto *dashBtn = new QPushButton(QStringLiteral("Dashboard ↗"), m_topRow);
+		// Botón "Dashboard" que abre el panel de BetterChatTV en el navegador.
+		auto *dashBtn = new QPushButton(QStringLiteral("Dashboard"), m_topRow);
 		dashBtn->setObjectName(QStringLiteral("accent"));
 		dashBtn->setCursor(Qt::PointingHandCursor);
+		dashBtn->setIcon(makeExternalLinkIcon(QColor("#0b2b2b")));
+		dashBtn->setIconSize(QSize(15, 15));
+		dashBtn->setLayoutDirection(Qt::RightToLeft); // icono a la DERECHA del texto
 		connect(dashBtn, &QPushButton::clicked, this, [this]() {
 			QString base = m_api->baseUrl();
 			if (base.isEmpty())
@@ -1623,7 +1629,35 @@ void BetterChatDock::buildYouTubePicker(QVBoxLayout *parent)
 	});
 }
 
-// Icono de pantalla completa dibujado con QPainter (nada de SVG en runtime).
+// Icono "abrir en el navegador" estilo Lucide external-link: un recuadro con la
+// esquina superior derecha abierta + una flecha diagonal saliente hacia arriba-dcha.
+QIcon BetterChatDock::makeExternalLinkIcon(const QColor &color)
+{
+	QPixmap pm(30, 30);
+	pm.fill(Qt::transparent);
+	QPainter p(&pm);
+	p.setRenderHint(QPainter::Antialiasing, true);
+	QPen pen(color);
+	pen.setWidth(2);
+	pen.setCapStyle(Qt::RoundCap);
+	pen.setJoinStyle(Qt::RoundJoin);
+	p.setPen(pen);
+	// Recuadro con la esquina superior-derecha ABIERTA (deja hueco para la flecha).
+	// Trazamos el borde como una polilínea que empieza y acaba en ese hueco.
+	// Caja de 6..24; la abertura está en el lado superior (x>=15) y derecho (y<=15).
+	p.drawLine(15, 6, 8, 6);    // borde superior (parte izquierda)
+	p.drawLine(8, 6, 6, 8);     // esquina sup-izq redondeada (aprox)
+	p.drawLine(6, 8, 6, 22);    // lado izquierdo
+	p.drawLine(6, 22, 24, 22);  // borde inferior
+	p.drawLine(24, 22, 24, 15); // lado derecho (parte baja)
+	// Flecha diagonal saliente hacia la esquina superior-derecha.
+	p.drawLine(13, 17, 24, 6);  // asta
+	p.drawLine(18, 6, 24, 6);   // punta: lado horizontal
+	p.drawLine(24, 6, 24, 12);  // punta: lado vertical
+	p.end();
+	return QIcon(pm);
+}
+
 // expanded=false -> flechas hacia fuera (entrar a fullscreen); true -> hacia dentro.
 QIcon BetterChatDock::makeExpandIcon(bool expanded)
 {
