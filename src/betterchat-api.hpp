@@ -134,6 +134,11 @@ private:
 	QNetworkReply *m_sseReply = nullptr;
 	QByteArray m_sseBuffer;
 	QTimer m_sseRetryTimer;
+	// Watchdog: detecta conexiones SSE medio-abiertas (el server reinicia y el
+	// socket queda colgado sin FIN/RST, por lo que `finished` nunca se dispara).
+	// Se reinicia con cada byte recibido (el server manda `: ping` cada 25s); si
+	// pasan >60s sin datos, se asume muerta y se fuerza reconexion.
+	QTimer m_sseWatchdog;
 	void handleSseData();
 	void processSseEvent(const QByteArray &block);
 

@@ -446,6 +446,7 @@ void BetterChatApi::startChatStream()
 			m_sseReply->deleteLater();
 			m_sseReply = nullptr;
 		}
+		m_sseWatchdog.stop();
 		emit chatStreamStateChanged(false);
 		// Reconexión automática mientras siga logueado (backoff simple).
 		if (wasActive && !m_token.isEmpty())
@@ -459,12 +460,27 @@ void BetterChatApi::startChatStream()
 				startChatStream();
 		});
 	}
+	// Watchdog de conexión medio-abierta: si el server reinicia (deploy) el
+	// socket puede quedar colgado sin que Qt emita `finished`, y el reintento
+	// nunca arranca. Si no llega NADA en 60s (el server hace ping cada 25s),
+	// abortamos: eso dispara `finished` -> reconexión. Configurar una sola vez.
+	if (!m_sseWatchdog.isSingleShot()) {
+		m_sseWatchdog.setSingleShot(true);
+		connect(&m_sseWatchdog, &QTimer::timeout, this, [this]() {
+			if (m_sseReply) {
+				obs_log(LOG_WARNING, "[betterchat] SSE watchdog: sin datos 60s, reconectando");
+				m_sseReply->abort(); // -> finished -> reintento
+			}
+		});
+	}
+	m_sseWatchdog.start(60000);
 	emit chatStreamStateChanged(true);
 }
 
 void BetterChatApi::stopChatStream()
 {
 	m_sseRetryTimer.stop();
+	m_sseWatchdog.stop();
 	if (m_sseReply) {
 		QNetworkReply *r = m_sseReply;
 		m_sseReply = nullptr;
@@ -479,6 +495,9 @@ void BetterChatApi::handleSseData()
 {
 	if (!m_sseReply)
 		return;
+	// Llegaron datos (mensaje real o ping `:`): la conexión está viva, rearmar
+	// el watchdog de 60s.
+	m_sseWatchdog.start(60000);
 	m_sseBuffer += m_sseReply->readAll();
 	// Los eventos SSE se separan por línea en blanco (\n\n).
 	int idx;
