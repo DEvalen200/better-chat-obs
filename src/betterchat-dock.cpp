@@ -42,6 +42,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QHash>
 #include <QScrollArea>
 #include <QDateTime>
+#include <QBuffer>
 #include <QComboBox>
 #include <QStyle>
 #include <QLineEdit>
@@ -1249,6 +1250,35 @@ void BetterChatDock::fillBetForm(const QString &title, const QStringList &option
 		addBetOptionField(i < options.size() ? options.at(i) : QString());
 }
 
+// Reloj Lucide (círculo + manecillas) rasterizado a PNG base64 para incrustar
+// como <img> en el QLabel del estado. Se dibuja a 2x para nitidez. Cacheado.
+QString BetterChatDock::clockIconB64()
+{
+	if (!m_clockIconB64.isEmpty())
+		return m_clockIconB64;
+	const int S = 12, F = 2; // 12px lógicos, x2 de resolución
+	QPixmap pm(S * F, S * F);
+	pm.fill(Qt::transparent);
+	QPainter p(&pm);
+	p.setRenderHint(QPainter::Antialiasing, true);
+	p.scale(S * F / 24.0, S * F / 24.0); // rejilla de diseño 24x24
+	QPen pen(QColor("#134a4a")); // igual que el texto "muted" sobre turquesa
+	pen.setWidthF(2.2);
+	pen.setCapStyle(Qt::RoundCap);
+	pen.setJoinStyle(Qt::RoundJoin);
+	p.setPen(pen);
+	p.drawEllipse(QPointF(12, 12), 9, 9);       // esfera
+	p.drawLine(QPointF(12, 12), QPointF(12, 7)); // manecilla larga (hacia arriba)
+	p.drawLine(QPointF(12, 12), QPointF(15.5, 13.5)); // manecilla corta
+	p.end();
+	QByteArray ba;
+	QBuffer buf(&ba);
+	buf.open(QIODevice::WriteOnly);
+	pm.save(&buf, "PNG");
+	m_clockIconB64 = QString::fromLatin1(ba.toBase64());
+	return m_clockIconB64;
+}
+
 // Pinta el label de estado de la apuesta: bote + estado + (si hay cierre
 // automático y está abierta) cuenta atrás "quedan Xs para votar". Se llama al
 // recibir estado nuevo y cada segundo por m_betCountdownTimer.
@@ -1256,6 +1286,8 @@ void BetterChatDock::refreshBetStateLabel(const QString &status, qint64 bote)
 {
 	if (!m_betActiveState)
 		return;
+	// Usamos rich text para poder incrustar el icono de reloj como <img>.
+	m_betActiveState->setTextFormat(Qt::RichText);
 	if (status == QStringLiteral("locked")) {
 		m_betActiveState->setText(
 			QStringLiteral("%1 fichas en el bote   ·   Cerrada, elige ganador").arg(bote));
@@ -1275,11 +1307,17 @@ void BetterChatDock::refreshBetStateLabel(const QString &status, qint64 bote)
 			} else {
 				rem = QStringLiteral("%1s").arg(secs);
 			}
-			tail = secs > 0 ? QStringLiteral("Abierta   ·   quedan %1 para votar").arg(rem)
-					: QStringLiteral("Abierta   ·   cerrando…");
+			const QString clock =
+				QStringLiteral("<img src='data:image/png;base64,%1' width='12' height='12' "
+					       "style='vertical-align:-2px'>&nbsp;")
+					.arg(clockIconB64());
+			tail = secs > 0
+				? QStringLiteral("Abierta&nbsp;&nbsp;·&nbsp;&nbsp;%1%2 para votar").arg(clock).arg(rem)
+				: QStringLiteral("Abierta&nbsp;&nbsp;·&nbsp;&nbsp;%1cerrando…").arg(clock);
 		}
 	}
-	m_betActiveState->setText(QStringLiteral("%1 fichas en el bote   ·   %2").arg(bote).arg(tail));
+	m_betActiveState->setText(
+		QStringLiteral("%1 fichas en el bote&nbsp;&nbsp;·&nbsp;&nbsp;%2").arg(bote).arg(tail));
 }
 
 // Refresca la UI con el estado de la apuesta activa (o el formulario si no hay).

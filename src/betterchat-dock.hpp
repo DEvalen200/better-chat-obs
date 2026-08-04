@@ -178,6 +178,8 @@ private:
 	qint64 m_lastBote = 0;             // último bote conocido (para repintar el label sin re-parsear)
 	// Pinta el label de estado de la apuesta (bote + abierta/cerrada + cuenta atrás).
 	void refreshBetStateLabel(const QString &status, qint64 bote);
+	QString m_clockIconB64;            // reloj Lucide rasterizado a PNG base64 (para el pill de cuenta atrás)
+	QString clockIconB64();            // lo genera la 1ª vez y lo cachea
 	// --- Modo pantalla completa del multichat ---
 	QPushButton *m_fsBtn = nullptr;   // botón flotante en la esquina del chat
 	QWidget *m_ytZone = nullptr;      // contenedor de toda la zona YT (para ocultar)
