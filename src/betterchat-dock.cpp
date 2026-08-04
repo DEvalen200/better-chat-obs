@@ -272,22 +272,46 @@ QLabel#betLockPill {
 /* Cabecera encapsulada de la predicción activa: recuadro oscuro + badge */
 QFrame#betHead { background: #120b10; border-radius: 13px; }
 QLabel#betHeadQ { color: #ffffff; font-size: 16px; font-weight: 800; }
+/* Badge: fondo sólido para que el border-radius se aplique de verdad en Qt */
 QLabel#betHeadBadge {
-	color: #3ad9d9; border: 1.5px solid rgba(58,217,217,0.5); border-radius: 999px;
-	padding: 2px 9px; font-size: 10px; font-weight: 800;
+	color: #3ad9d9; background: #1c2b2b; border-radius: 9px;
+	padding: 3px 10px; font-size: 10px; font-weight: 800;
 }
-QLabel#betHeadBadge[locked="true"] {
-	color: #120b10; background: #ffb347; border: 0;
+QLabel#betHeadBadge[locked="true"] { color: #120b10; background: #ffb347; }
+/* Pills de meta (bote + tiempo) */
+QLabel#betPotPill {
+	background: #120b10; color: #ffffff; border-radius: 999px;
+	padding: 4px 12px; font-size: 12px; font-weight: 800;
 }
-/* Fila de opción: la barra la pinta PredOptionBar; aquí solo la zona de stats. */
+QLabel#betTimePill {
+	background: #ffffff; color: #120b10; border: 1.5px solid rgba(18,11,16,0.2);
+	border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 800;
+}
+QLabel#betTimePill[urgent="true"] {
+	background: #ff5d6c; color: #ffffff; border: 0;
+}
+/* Fila de opción: la barra la pinta PredOptionBar; aquí solo la zona de stats,
+   pegada a la derecha de la barra (esquinas derechas redondeadas, izq recta). */
 QFrame#betOptStats {
 	background: #ffffff; border: 1.5px solid rgba(18,11,16,0.16);
 	border-left: 0; border-top-right-radius: 10px; border-bottom-right-radius: 10px;
+	border-top-left-radius: 0; border-bottom-left-radius: 0;
 }
 QLabel#betStatV { color: #120b10; font-size: 14px; font-weight: 800; }
 QLabel#betStatK { color: #5b4750; font-size: 8px; font-weight: 700; }
 QLabel#betOptLabel { color: #120b10; font-size: 13px; font-weight: 600; }
 QLabel#betOptAgg { color: #134a4a; font-size: 11px; }
+/* Acciones: Cerrar = primaria oscura sólida; Cancelar = contorno (secundaria) */
+QPushButton#betPrimary {
+	background: #120b10; color: #ffffff; border: 0; border-radius: 10px;
+	padding: 10px 14px; font-size: 13px; font-weight: 800;
+}
+QPushButton#betPrimary:hover { background: #2a1c24; }
+QPushButton#betGhostDark {
+	background: transparent; color: #120b10; border: 1.5px solid rgba(18,11,16,0.32);
+	border-radius: 10px; padding: 10px 14px; font-size: 13px; font-weight: 800;
+}
+QPushButton#betGhostDark:hover { background: rgba(18,11,16,0.08); }
 QPushButton#betWin {
 	background: #3ad07a; color: #0b0c10; border: 0; border-radius: 7px;
 	padding: 5px 10px; font-size: 11px; font-weight: 700;
@@ -427,11 +451,17 @@ protected:
 	{
 		QPainter p(this);
 		p.setRenderHint(QPainter::Antialiasing, true);
-		const QRectF r = rect().adjusted(0.75, 0.75, -0.75, -0.75);
+		const QRectF r = rect().adjusted(0.75, 0.75, 0, -0.75); // sin margen derecho: se une a la stats box
 		const qreal rad = 10.0;
-		// Fondo blanco redondeado.
+		// Fondo blanco redondeado SOLO por la izquierda (derecha recta, pegada a stats).
 		QPainterPath clipPath;
-		clipPath.addRoundedRect(r, rad, rad);
+		clipPath.moveTo(r.right(), r.top());
+		clipPath.lineTo(r.left() + rad, r.top());
+		clipPath.arcTo(r.left(), r.top(), rad * 2, rad * 2, 90, 90);
+		clipPath.lineTo(r.left(), r.bottom() - rad);
+		clipPath.arcTo(r.left(), r.bottom() - rad * 2, rad * 2, rad * 2, 180, 90);
+		clipPath.lineTo(r.right(), r.bottom());
+		clipPath.closeSubpath();
 		p.setClipPath(clipPath);
 		p.fillRect(rect(), QColor("#ffffff"));
 		// Barra de color progresiva desde la izquierda.
@@ -439,7 +469,6 @@ protected:
 		const QRectF barRect(r.left(), r.top(), barW, r.height());
 		p.fillRect(barRect, m_color);
 		// Texto base (oscuro, se ve sobre el blanco).
-		p.setClipPath(clipPath); // restaurar clip completo
 		QFont f = font();
 		f.setBold(true);
 		f.setPixelSize(15);
@@ -455,11 +484,10 @@ protected:
 		p.drawText(txtRect, Qt::AlignVCenter | Qt::AlignLeft,
 			   fontMetrics().elidedText(m_label, Qt::ElideRight, int(txtRect.width())));
 		p.restore();
-		// Borde sutil.
+		// Borde sutil izquierdo/superior/inferior (el derecho lo cierra la stats box).
 		p.setClipping(false);
 		p.setPen(QPen(QColor(18, 11, 16, 36), 1.5));
-		p.setBrush(Qt::NoBrush);
-		p.drawRoundedRect(r, rad, rad);
+		p.drawPath(clipPath);
 	}
 
 private:
@@ -1083,8 +1111,25 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 	m_betActiveBadge->setAlignment(Qt::AlignCenter);
 	hh->addWidget(m_betActiveBadge, 0, Qt::AlignVCenter);
 	av->addWidget(headFrame);
+	// Meta como PILLS reales (no texto plano): bote (oscuro) + cuenta atrás (blanco).
+	auto *metaBar = new QWidget(m_betActive);
+	auto *mb = new QHBoxLayout(metaBar);
+	mb->setContentsMargins(0, 2, 0, 2);
+	mb->setSpacing(7);
+	m_betPotPill = new QLabel(QString(), metaBar);
+	m_betPotPill->setObjectName(QStringLiteral("betPotPill"));
+	m_betPotPill->setTextFormat(Qt::RichText);
+	mb->addWidget(m_betPotPill, 0);
+	m_betTimePill = new QLabel(QString(), metaBar);
+	m_betTimePill->setObjectName(QStringLiteral("betTimePill"));
+	m_betTimePill->setTextFormat(Qt::RichText);
+	mb->addWidget(m_betTimePill, 0);
+	mb->addStretch(1);
+	av->addWidget(metaBar);
+	// Label oculto de estado (compat: algunos flujos aún lo consultan).
 	m_betActiveState = new QLabel(QString(), m_betActive);
 	m_betActiveState->setObjectName(QStringLiteral("muted"));
+	m_betActiveState->setVisible(false);
 	av->addWidget(m_betActiveState);
 	m_betOptsBox = new QVBoxLayout();
 	m_betOptsBox->setSpacing(5);
@@ -1092,13 +1137,13 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 
 	auto *actRow = new QHBoxLayout();
 	m_betLockBtn = new QPushButton(QStringLiteral("Cerrar apuestas"), m_betActive);
-	m_betLockBtn->setObjectName(QStringLiteral("accent"));
+	m_betLockBtn->setObjectName(QStringLiteral("betPrimary"));
 	m_betLockBtn->setCursor(Qt::PointingHandCursor);
 	m_betLockBtn->setToolTip(QStringLiteral("Nadie más podrá apostar; luego marca el ganador"));
 	connect(m_betLockBtn, &QPushButton::clicked, this, [this]() { m_api->betAction(QStringLiteral("lock")); });
 	actRow->addWidget(m_betLockBtn, 1);
 	m_betCancelBtn = new QPushButton(QStringLiteral("Cancelar y devolver"), m_betActive);
-	m_betCancelBtn->setObjectName(QStringLiteral("danger"));
+	m_betCancelBtn->setObjectName(QStringLiteral("betGhostDark"));
 	m_betCancelBtn->setCursor(Qt::PointingHandCursor);
 	m_betCancelBtn->setToolTip(QStringLiteral("Anula la apuesta y devuelve las fichas"));
 	connect(m_betCancelBtn, &QPushButton::clicked, this, [this]() { m_api->betAction(QStringLiteral("cancel")); });
@@ -1356,18 +1401,20 @@ void BetterChatDock::fillBetForm(const QString &title, const QStringList &option
 }
 
 // Reloj Lucide (círculo + manecillas) rasterizado a PNG base64 para incrustar
-// como <img> en el QLabel del estado. Se dibuja a 2x para nitidez. Cacheado.
-QString BetterChatDock::clockIconB64()
+// como <img> en el pill de cuenta atrás. Se dibuja a 2x para nitidez. Cacheado.
+// white=true -> trazo blanco (para el pill urgente rojo); si no, oscuro.
+QString BetterChatDock::clockIconB64(bool white)
 {
-	if (!m_clockIconB64.isEmpty())
-		return m_clockIconB64;
+	QString &cache = white ? m_clockIconB64White : m_clockIconB64;
+	if (!cache.isEmpty())
+		return cache;
 	const int S = 12, F = 2; // 12px lógicos, x2 de resolución
 	QPixmap pm(S * F, S * F);
 	pm.fill(Qt::transparent);
 	QPainter p(&pm);
 	p.setRenderHint(QPainter::Antialiasing, true);
 	p.scale(S * F / 24.0, S * F / 24.0); // rejilla de diseño 24x24
-	QPen pen(QColor("#134a4a")); // igual que el texto "muted" sobre turquesa
+	QPen pen(white ? QColor("#ffffff") : QColor("#134a4a"));
 	pen.setWidthF(2.2);
 	pen.setCapStyle(Qt::RoundCap);
 	pen.setJoinStyle(Qt::RoundJoin);
@@ -1380,50 +1427,54 @@ QString BetterChatDock::clockIconB64()
 	QBuffer buf(&ba);
 	buf.open(QIODevice::WriteOnly);
 	pm.save(&buf, "PNG");
-	m_clockIconB64 = QString::fromLatin1(ba.toBase64());
-	return m_clockIconB64;
+	cache = QString::fromLatin1(ba.toBase64());
+	return cache;
 }
 
-// Pinta el label de estado de la apuesta: bote + estado + (si hay cierre
-// automático y está abierta) cuenta atrás "quedan Xs para votar". Se llama al
-// recibir estado nuevo y cada segundo por m_betCountdownTimer.
+// Rellena las PILLS de meta: bote (fichas) y cuenta atrás (icono + tiempo). El
+// pill de tiempo se pone rojo cuando quedan <=10s. Se llama al recibir estado y
+// cada segundo por m_betCountdownTimer.
 void BetterChatDock::refreshBetStateLabel(const QString &status, qint64 bote)
 {
-	if (!m_betActiveState)
+	if (m_betPotPill) {
+		// Número en turquesa dentro del pill oscuro, como la web.
+		m_betPotPill->setText(QStringLiteral(
+			"<span style='color:#3ad9d9;font-weight:800'>%1</span> fichas").arg(bote));
+	}
+	if (!m_betTimePill)
 		return;
-	// Usamos rich text para poder incrustar el icono de reloj como <img>.
-	m_betActiveState->setTextFormat(Qt::RichText);
-	if (status == QStringLiteral("locked")) {
-		m_betActiveState->setText(
-			QStringLiteral("%1 fichas en el bote   ·   Cerrada, elige ganador").arg(bote));
+	// Bloqueada o sin cierre automático: sin pill de tiempo.
+	if (status == QStringLiteral("locked") || m_betLockAt.isEmpty()) {
+		m_betTimePill->setVisible(false);
 		return;
 	}
-	QString tail = QStringLiteral("Abierta");
-	if (!m_betLockAt.isEmpty()) {
-		const QDateTime lock = QDateTime::fromString(m_betLockAt, Qt::ISODate);
-		if (lock.isValid()) {
-			qint64 secs = QDateTime::currentDateTimeUtc().secsTo(lock.toUTC());
-			if (secs < 0)
-				secs = 0;
-			QString rem;
-			if (secs >= 60) {
-				const qint64 m = secs / 60, s = secs % 60;
-				rem = QStringLiteral("%1:%2").arg(m).arg(s, 2, 10, QLatin1Char('0'));
-			} else {
-				rem = QStringLiteral("%1s").arg(secs);
-			}
-			const QString clock =
-				QStringLiteral("<img src='data:image/png;base64,%1' width='12' height='12' "
-					       "style='vertical-align:-2px'>&nbsp;")
-					.arg(clockIconB64());
-			// Solo icono + tiempo (sin "para votar"), como la web.
-			tail = secs > 0
-				? QStringLiteral("Abierta&nbsp;&nbsp;·&nbsp;&nbsp;%1%2").arg(clock).arg(rem)
-				: QStringLiteral("Abierta&nbsp;&nbsp;·&nbsp;&nbsp;%1cerrando…").arg(clock);
-		}
+	const QDateTime lock = QDateTime::fromString(m_betLockAt, Qt::ISODate);
+	if (!lock.isValid()) {
+		m_betTimePill->setVisible(false);
+		return;
 	}
-	m_betActiveState->setText(
-		QStringLiteral("%1 fichas en el bote&nbsp;&nbsp;·&nbsp;&nbsp;%2").arg(bote).arg(tail));
+	qint64 secs = QDateTime::currentDateTimeUtc().secsTo(lock.toUTC());
+	if (secs < 0)
+		secs = 0;
+	const bool urgent = secs <= 10;
+	QString rem;
+	if (secs >= 60) {
+		const qint64 m = secs / 60, s = secs % 60;
+		rem = QStringLiteral("%1:%2").arg(m).arg(s, 2, 10, QLatin1Char('0'));
+	} else if (secs > 0) {
+		rem = QStringLiteral("%1s").arg(secs);
+	} else {
+		rem = QStringLiteral("cerrando…");
+	}
+	const QString clock =
+		QStringLiteral("<img src='data:image/png;base64,%1' width='12' height='12' "
+			       "style='vertical-align:-2px'>&nbsp;")
+			.arg(clockIconB64(urgent));
+	m_betTimePill->setText(clock + rem);
+	m_betTimePill->setProperty("urgent", urgent);
+	m_betTimePill->style()->unpolish(m_betTimePill);
+	m_betTimePill->style()->polish(m_betTimePill);
+	m_betTimePill->setVisible(true);
 }
 
 // Refresca la UI con el estado de la apuesta activa (o el formulario si no hay).

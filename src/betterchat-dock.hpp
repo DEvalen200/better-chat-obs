@@ -167,6 +167,8 @@ private:
 	int m_lastHistoryCount = 0;        // nº de predicciones en el historial
 	QLabel *m_betActiveTitle = nullptr;// título de la apuesta activa
 	QLabel *m_betActiveBadge = nullptr;// badge de estado (Abierta/Cerrada) en la cabecera
+	QLabel *m_betPotPill = nullptr;    // pill del bote (fichas)
+	QLabel *m_betTimePill = nullptr;   // pill de la cuenta atrás (icono + tiempo)
 	QLabel *m_betActiveState = nullptr;// estado (abierta/bloqueada) + bote
 	QVBoxLayout *m_betOptsBox = nullptr;// filas de opciones con barras
 	QPushButton *m_betLockBtn = nullptr;
@@ -180,8 +182,9 @@ private:
 	qint64 m_lastBote = 0;             // último bote conocido (para repintar el label sin re-parsear)
 	// Pinta el label de estado de la apuesta (bote + abierta/cerrada + cuenta atrás).
 	void refreshBetStateLabel(const QString &status, qint64 bote);
-	QString m_clockIconB64;            // reloj Lucide rasterizado a PNG base64 (para el pill de cuenta atrás)
-	QString clockIconB64();            // lo genera la 1ª vez y lo cachea
+	QString m_clockIconB64;            // reloj Lucide oscuro (pill normal)
+	QString m_clockIconB64White;       // reloj Lucide blanco (pill urgente rojo)
+	QString clockIconB64(bool white = false); // lo genera la 1ª vez y lo cachea
 	// --- Modo pantalla completa del multichat ---
 	QPushButton *m_fsBtn = nullptr;   // botón flotante en la esquina del chat
 	QWidget *m_ytZone = nullptr;      // contenedor de toda la zona YT (para ocultar)
