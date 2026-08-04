@@ -274,6 +274,13 @@ QLabel#betLockPill {
 	background: rgba(18,11,16,0.12); color: #120b10; border-radius: 999px;
 	padding: 3px 10px; font-size: 11px; font-weight: 700;
 }
+/* Barra superior del panel embebido (con botón Recargar) */
+QWidget#embedBar { background: #1e141b; border-bottom: 1px solid #3a2833; }
+QPushButton#embedReload {
+	background: #3ad9d9; color: #0b2b2b; border: 0; border-radius: 7px;
+	padding: 5px 11px; font-size: 11px; font-weight: 700;
+}
+QPushButton#embedReload:hover { background: #57e2e2; }
 /* Cabecera encapsulada de la predicción activa: recuadro oscuro + badge */
 QFrame#betHead { background: #120b10; border-radius: 13px; }
 QLabel#betHeadQ { color: #ffffff; font-size: 16px; font-weight: 800; }
@@ -1005,9 +1012,37 @@ QWidget *BetterChatDock::buildBetsTabEmbedded()
 	m_betsEmbed = w;
 	obs_log(LOG_INFO, "[betterchat] apuestas en modo WEB EMBEBIDA (QCef v%d)", obs_browser_qcef_version());
 	loadBetsEmbedUrl();
-	return w;
-}
 
+	// Contenedor: barra fina superior con botón "Recargar" + el navegador debajo.
+	// El botón hace reloadPage() del QCef (recarga la web al instante, sin reiniciar
+	// OBS): útil porque el panel es web y los cambios de servidor se ven al recargar.
+	auto *wrap = new QWidget();
+	auto *wv = new QVBoxLayout(wrap);
+	wv->setContentsMargins(0, 0, 0, 0);
+	wv->setSpacing(0);
+	auto *bar = new QWidget(wrap);
+	bar->setObjectName(QStringLiteral("embedBar"));
+	bar->setAttribute(Qt::WA_StyledBackground, true);
+	auto *bh = new QHBoxLayout(bar);
+	bh->setContentsMargins(8, 5, 8, 5);
+	bh->setSpacing(6);
+	bh->addStretch(1);
+	auto *reloadBtn = new QPushButton(QStringLiteral("Recargar"), bar);
+	reloadBtn->setObjectName(QStringLiteral("embedReload"));
+	reloadBtn->setCursor(Qt::PointingHandCursor);
+	reloadBtn->setToolTip(QStringLiteral("Volver a cargar el panel de apuestas"));
+	reloadBtn->setIcon(makeReloadIcon());
+	reloadBtn->setIconSize(QSize(14, 14));
+	connect(reloadBtn, &QPushButton::clicked, this, [this]() {
+		// Recargar desde el puente (renueva sesión) para no caer en un about:blank
+		// si el token cambió; si no hay token, reloadPage basta.
+		loadBetsEmbedUrl();
+	});
+	bh->addWidget(reloadBtn, 0);
+	wv->addWidget(bar, 0);
+	wv->addWidget(w, 1);
+	return wrap;
+}
 // (Re)carga la URL del puente en el QCef. Se llama al construir y cada vez que
 // cambia el login (loggedIn/loggedOut). Sin token, muestra un about:blank.
 void BetterChatDock::loadBetsEmbedUrl()
@@ -2034,6 +2069,36 @@ QIcon BetterChatDock::makeExternalLinkIcon(const QColor &color)
 	tip.lineTo(21, 3);
 	tip.lineTo(21, 9);
 	p.drawPath(tip);
+	p.end();
+	return QIcon(pm);
+}
+
+// Icono "recargar": flecha circular estilo Lucide rotate-cw. Nítido (HiDPI).
+QIcon BetterChatDock::makeReloadIcon()
+{
+	const qreal dpr = devicePixelRatioF() > 0.0 ? devicePixelRatioF() : 1.0;
+	const int S = 14;
+	QPixmap pm(qRound(S * dpr), qRound(S * dpr));
+	pm.setDevicePixelRatio(dpr);
+	pm.fill(Qt::transparent);
+	QPainter p(&pm);
+	p.setRenderHint(QPainter::Antialiasing, true);
+	p.scale(S / 24.0, S / 24.0);
+	QPen pen(QColor("#f6eef3"));
+	pen.setWidthF(2.2);
+	pen.setCapStyle(Qt::RoundCap);
+	pen.setJoinStyle(Qt::RoundJoin);
+	p.setPen(pen);
+	// Arco (círculo abierto arriba-derecha) + flecha en el extremo.
+	QPainterPath arc;
+	QRectF box(4, 4, 16, 16);
+	arc.arcMoveTo(box, 60);      // empieza arriba-derecha
+	arc.arcTo(box, 60, 300);     // deja un hueco donde va la punta de flecha
+	p.drawPath(arc);
+	// Punta de flecha en el inicio del arco (arriba-derecha).
+	const QPointF tip(18.0, 6.5);
+	p.drawLine(tip, QPointF(tip.x() - 4.5, tip.y() + 0.5));
+	p.drawLine(tip, QPointF(tip.x() - 0.5, tip.y() + 4.5));
 	p.end();
 	return QIcon(pm);
 }
