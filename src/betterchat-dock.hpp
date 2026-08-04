@@ -56,6 +56,11 @@ public:
 	// auto-conexión de YouTube). La llama el callback del frontend de OBS.
 	void onStreamingChanged(bool active);
 
+	// Cierra y suelta el navegador embebido (QCef) de forma ORDENADA. Se llama en
+	// OBS_FRONTEND_EVENT_EXIT: hay que destruir el QCefWidget ANTES de que OBS
+	// descargue el módulo obs-browser, o CEF crashea al salir (libcef assert).
+	void shutdownEmbeddedBrowser();
+
 private slots:
 	void onStartLogin();
 	void onPairingStarted(const QString &userCode, const QString &verifyUrl);

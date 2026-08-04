@@ -1050,6 +1050,26 @@ void BetterChatDock::loadBetsEmbedUrl()
 	w->setURL(url.toStdString());
 }
 
+// Cierre ORDENADO del navegador embebido, llamado en OBS_FRONTEND_EVENT_EXIT.
+// El crash al salir de OBS (libcef assert 0x80000003 en QCefWidgetInternal::
+// closeBrowser durante obs_shutdown) ocurre porque el QCefWidget se destruye a la
+// vez que CEF/obs-browser se apagan. Cerrándolo explícitamente ANTES (mientras CEF
+// sigue vivo) y soltando el puntero, la destrucción posterior del árbol de widgets
+// ya no toca un navegador medio-apagado.
+void BetterChatDock::shutdownEmbeddedBrowser()
+{
+	if (!m_betsEmbed)
+		return;
+	auto *w = static_cast<QCefWidget *>(m_betsEmbed);
+	m_betsEmbed = nullptr; // no volver a tocarlo (loadBetsEmbedUrl, reload, etc.)
+	// Cargar about:blank primero descarga la página (para el flush de cookies) y
+	// luego cerrar el navegador de forma síncrona mientras CEF aún está vivo.
+	w->setURL("about:blank");
+	w->closeBrowser();
+	w->setParent(nullptr);
+	w->deleteLater();
+}
+
 // Construye la pestaña de apuestas: un formulario para crear y un panel para la
 // apuesta en curso (se alternan según haya o no apuesta activa). Refresca por poll.
 void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
@@ -3179,6 +3199,15 @@ extern "C" void betterchat_register_dock(void)
 				QMetaObject::invokeMethod(s_dock, [] { s_dock->onStreamingChanged(true); });
 			else if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPED)
 				QMetaObject::invokeMethod(s_dock, [] { s_dock->onStreamingChanged(false); });
+			else if (event == OBS_FRONTEND_EVENT_EXIT) {
+				// OBS se cierra: destruir el navegador embebido AHORA, mientras
+				// CEF/obs-browser siguen vivos, para no crashear en obs_shutdown.
+				// Síncrono (Qt::DirectConnection): el callback ya corre en el hilo de UI.
+				QMetaObject::invokeMethod(
+					s_dock, [] { s_dock->shutdownEmbeddedBrowser(); },
+					Qt::DirectConnection);
+				s_dock = nullptr; // no volver a usar el dock tras el exit
+			}
 		},
 		nullptr);
 }
