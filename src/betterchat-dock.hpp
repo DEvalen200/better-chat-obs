@@ -171,6 +171,13 @@ private:
 	QPushButton *m_betCancelBtn = nullptr;
 	QTimer *m_betPollTimer = nullptr;  // refresco periódico del estado
 	QString m_activeBetStatus;         // "", "open", "locked"
+	QScrollArea *m_betsScroll = nullptr; // scroll de la pestaña de apuestas (para subir arriba al crear)
+	QString m_lastCreatedBetId;        // id de la última apuesta que YO acabo de crear (para subir el scroll una sola vez)
+	QString m_betLockAt;               // ISO del cierre automático de la apuesta activa (vacío = manual)
+	QTimer *m_betCountdownTimer = nullptr; // refresca el "quedan Xs" cada segundo
+	qint64 m_lastBote = 0;             // último bote conocido (para repintar el label sin re-parsear)
+	// Pinta el label de estado de la apuesta (bote + abierta/cerrada + cuenta atrás).
+	void refreshBetStateLabel(const QString &status, qint64 bote);
 	// --- Modo pantalla completa del multichat ---
 	QPushButton *m_fsBtn = nullptr;   // botón flotante en la esquina del chat
 	QWidget *m_ytZone = nullptr;      // contenedor de toda la zona YT (para ocultar)

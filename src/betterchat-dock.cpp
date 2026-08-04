@@ -41,6 +41,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QAbstractItemView>
 #include <QHash>
 #include <QScrollArea>
+#include <QDateTime>
 #include <QComboBox>
 #include <QStyle>
 #include <QLineEdit>
@@ -827,6 +828,7 @@ void BetterChatDock::buildUi()
 			scroll->setFrameShape(QFrame::NoFrame);
 			scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 			scroll->setObjectName(QStringLiteral("scrollPage"));
+			m_betsScroll = scroll; // guardado para subir arriba al crear una apuesta
 			m_tabStack->addWidget(scroll); // índice 2
 		}
 
@@ -1247,6 +1249,39 @@ void BetterChatDock::fillBetForm(const QString &title, const QStringList &option
 		addBetOptionField(i < options.size() ? options.at(i) : QString());
 }
 
+// Pinta el label de estado de la apuesta: bote + estado + (si hay cierre
+// automático y está abierta) cuenta atrás "quedan Xs para votar". Se llama al
+// recibir estado nuevo y cada segundo por m_betCountdownTimer.
+void BetterChatDock::refreshBetStateLabel(const QString &status, qint64 bote)
+{
+	if (!m_betActiveState)
+		return;
+	if (status == QStringLiteral("locked")) {
+		m_betActiveState->setText(
+			QStringLiteral("%1 fichas en el bote   ·   Cerrada, elige ganador").arg(bote));
+		return;
+	}
+	QString tail = QStringLiteral("Abierta");
+	if (!m_betLockAt.isEmpty()) {
+		const QDateTime lock = QDateTime::fromString(m_betLockAt, Qt::ISODate);
+		if (lock.isValid()) {
+			qint64 secs = QDateTime::currentDateTimeUtc().secsTo(lock.toUTC());
+			if (secs < 0)
+				secs = 0;
+			QString rem;
+			if (secs >= 60) {
+				const qint64 m = secs / 60, s = secs % 60;
+				rem = QStringLiteral("%1:%2").arg(m).arg(s, 2, 10, QLatin1Char('0'));
+			} else {
+				rem = QStringLiteral("%1s").arg(secs);
+			}
+			tail = secs > 0 ? QStringLiteral("Abierta   ·   quedan %1 para votar").arg(rem)
+					: QStringLiteral("Abierta   ·   cerrando…");
+		}
+	}
+	m_betActiveState->setText(QStringLiteral("%1 fichas en el bote   ·   %2").arg(bote).arg(tail));
+}
+
 // Refresca la UI con el estado de la apuesta activa (o el formulario si no hay).
 void BetterChatDock::onControlState(const QByteArray &json)
 {
@@ -1260,16 +1295,42 @@ void BetterChatDock::onControlState(const QByteArray &json)
 	if (m_lastHasBet) {
 		const QJsonObject bet = betVal.toObject();
 		const QString status = bet.value(QStringLiteral("status")).toString();
+		const QString betId = bet.value(QStringLiteral("id")).toString();
 		m_activeBetStatus = status;
 		m_betActiveTitle->setText(bet.value(QStringLiteral("title")).toString());
 		const qint64 bote = static_cast<qint64>(bet.value(QStringLiteral("bote")).toDouble());
-		// Estado como pills (bote verde + estado), al estilo de la web.
-		if (status == QStringLiteral("locked"))
-			m_betActiveState->setText(
-				QStringLiteral("%1 fichas en el bote   ·   Cerrada, elige ganador").arg(bote));
-		else
-			m_betActiveState->setText(
-				QStringLiteral("%1 fichas en el bote   ·   Abierta").arg(bote));
+		// Guardar el cierre automático (ISO o vacío) para la cuenta atrás.
+		m_betLockAt = bet.value(QStringLiteral("lockAt")).toString();
+		// APUESTA RECIÉN APARECIDA: subir el scroll ARRIBA para que se vea la
+		// info nueva de la apuesta (antes quedaba abajo, donde estaba el botón
+		// "Crear apuesta"). Solo la primera vez que vemos este id.
+		if (betId != m_lastCreatedBetId) {
+			m_lastCreatedBetId = betId;
+			if (m_betsScroll) {
+				// tras el relayout de updateBetView (al final): subir en el
+				// próximo ciclo de eventos para que surta efecto.
+				QScrollArea *sc = m_betsScroll;
+				QTimer::singleShot(0, this, [sc]() {
+					sc->verticalScrollBar()->setValue(0);
+				});
+			}
+		}
+		// Estado como pills (bote verde + estado + cuenta atrás), al estilo web.
+		refreshBetStateLabel(status, bote);
+		// La cuenta atrás se refresca cada segundo mientras esté abierta con cierre.
+		if (status == QStringLiteral("open") && !m_betLockAt.isEmpty()) {
+			if (!m_betCountdownTimer) {
+				m_betCountdownTimer = new QTimer(this);
+				m_betCountdownTimer->setInterval(1000);
+				connect(m_betCountdownTimer, &QTimer::timeout, this, [this]() {
+					refreshBetStateLabel(m_activeBetStatus, m_lastBote);
+				});
+			}
+			m_lastBote = bote;
+			m_betCountdownTimer->start();
+		} else if (m_betCountdownTimer) {
+			m_betCountdownTimer->stop();
+		}
 
 		// Reconstruir las filas de opciones con su barra de reparto.
 		while (QLayoutItem *it = m_betOptsBox->takeAt(0)) {
@@ -1315,6 +1376,10 @@ void BetterChatDock::onControlState(const QByteArray &json)
 		m_betLockBtn->setVisible(status == QStringLiteral("open"));
 	} else {
 		m_activeBetStatus.clear();
+		m_betLockAt.clear();
+		m_lastCreatedBetId.clear(); // la próxima apuesta volverá a subir el scroll
+		if (m_betCountdownTimer)
+			m_betCountdownTimer->stop();
 	}
 
 	// Guardar el historial completo y pintar la página actual (5 por página).
