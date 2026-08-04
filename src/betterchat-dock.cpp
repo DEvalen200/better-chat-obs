@@ -269,10 +269,23 @@ QLabel#betLockPill {
 	background: rgba(18,11,16,0.12); color: #120b10; border-radius: 999px;
 	padding: 3px 10px; font-size: 11px; font-weight: 700;
 }
-/* Fila de opción (pill blanca sólida con etiqueta + agregados) */
-QFrame#betOpt {
-	background: #ffffff; border: 1px solid #159a9a; border-radius: 9px;
+/* Cabecera encapsulada de la predicción activa: recuadro oscuro + badge */
+QFrame#betHead { background: #120b10; border-radius: 13px; }
+QLabel#betHeadQ { color: #ffffff; font-size: 16px; font-weight: 800; }
+QLabel#betHeadBadge {
+	color: #3ad9d9; border: 1.5px solid rgba(58,217,217,0.5); border-radius: 999px;
+	padding: 2px 9px; font-size: 10px; font-weight: 800;
 }
+QLabel#betHeadBadge[locked="true"] {
+	color: #120b10; background: #ffb347; border: 0;
+}
+/* Fila de opción: la barra la pinta PredOptionBar; aquí solo la zona de stats. */
+QFrame#betOptStats {
+	background: #ffffff; border: 1.5px solid rgba(18,11,16,0.16);
+	border-left: 0; border-top-right-radius: 10px; border-bottom-right-radius: 10px;
+}
+QLabel#betStatV { color: #120b10; font-size: 14px; font-weight: 800; }
+QLabel#betStatK { color: #5b4750; font-size: 8px; font-weight: 700; }
 QLabel#betOptLabel { color: #120b10; font-size: 13px; font-weight: 600; }
 QLabel#betOptAgg { color: #134a4a; font-size: 11px; }
 QPushButton#betWin {
@@ -389,6 +402,86 @@ protected:
 private:
 	QColor m_arrow{"#120b10"};
 };
+
+// Zona de etiqueta de una opción de predicción: fondo blanco redondeado (por la
+// izquierda), barra de color progresiva (= % del bote) y el texto de la etiqueta
+// pintado en DOS colores: blanco sobre la barra de color, oscuro sobre el blanco.
+// Replica el efecto de "texto que se invierte" del panel web (doble capa + clip).
+class PredOptionBar : public QWidget {
+public:
+	explicit PredOptionBar(QWidget *parent = nullptr) : QWidget(parent)
+	{
+		setMinimumHeight(46);
+		setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+	}
+	void setData(const QString &label, int pct, const QColor &color)
+	{
+		m_label = label;
+		m_pct = qBound(0, pct, 100);
+		m_color = color;
+		update();
+	}
+
+protected:
+	void paintEvent(QPaintEvent *) override
+	{
+		QPainter p(this);
+		p.setRenderHint(QPainter::Antialiasing, true);
+		const QRectF r = rect().adjusted(0.75, 0.75, -0.75, -0.75);
+		const qreal rad = 10.0;
+		// Fondo blanco redondeado.
+		QPainterPath clipPath;
+		clipPath.addRoundedRect(r, rad, rad);
+		p.setClipPath(clipPath);
+		p.fillRect(rect(), QColor("#ffffff"));
+		// Barra de color progresiva desde la izquierda.
+		const int barW = int(r.width() * m_pct / 100.0);
+		const QRectF barRect(r.left(), r.top(), barW, r.height());
+		p.fillRect(barRect, m_color);
+		// Texto base (oscuro, se ve sobre el blanco).
+		p.setClipPath(clipPath); // restaurar clip completo
+		QFont f = font();
+		f.setBold(true);
+		f.setPixelSize(15);
+		p.setFont(f);
+		const QRectF txtRect = r.adjusted(14, 0, -10, 0);
+		p.setPen(QColor("#120b10"));
+		p.drawText(txtRect, Qt::AlignVCenter | Qt::AlignLeft,
+			   fontMetrics().elidedText(m_label, Qt::ElideRight, int(txtRect.width())));
+		// Texto blanco recortado al ancho de la barra (encima).
+		p.save();
+		p.setClipRect(barRect);
+		p.setPen(QColor("#ffffff"));
+		p.drawText(txtRect, Qt::AlignVCenter | Qt::AlignLeft,
+			   fontMetrics().elidedText(m_label, Qt::ElideRight, int(txtRect.width())));
+		p.restore();
+		// Borde sutil.
+		p.setClipping(false);
+		p.setPen(QPen(QColor(18, 11, 16, 36), 1.5));
+		p.setBrush(Qt::NoBrush);
+		p.drawRoundedRect(r, rad, rad);
+	}
+
+private:
+	QString m_label;
+	int m_pct = 0;
+	QColor m_color{"#e63946"};
+};
+
+// Paleta curada de colores por opción (vivos, todos legibles con texto blanco).
+// Misma que la web (control.html PRED_PALETTE). De la 15 en adelante (raro, tope
+// 20) se reutiliza oscureciendo ~18% para que no haya dos filas idénticas.
+static QColor predOptionColor(int i)
+{
+	static const char *PAL[] = {"#e63946", "#2f6bff", "#8b4dff", "#f4a010", "#1fb56b",
+				    "#e8467f", "#12a5b5", "#d9480f", "#6741d9", "#c2255c",
+				    "#0b7285", "#e67700", "#2b8a3e", "#9c36b5"};
+	const int N = int(sizeof(PAL) / sizeof(PAL[0]));
+	QColor c(PAL[i % N]);
+	if (i >= N)
+		c = c.darker(122); // ~18% más oscuro para las repeticiones
+	return c;
+}
 
 BetterChatDock::BetterChatDock(QWidget *parent) : QWidget(parent)
 {
@@ -974,10 +1067,22 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 	auto *av = new QVBoxLayout(m_betActive);
 	av->setContentsMargins(0, 0, 0, 0);
 	av->setSpacing(6);
-	m_betActiveTitle = new QLabel(QString(), m_betActive);
-	m_betActiveTitle->setObjectName(QStringLiteral("ytPickTitle"));
+	// Cabecera ENCAPSULADA: recuadro oscuro con la pregunta + badge de estado.
+	auto *headFrame = new QFrame(m_betActive);
+	headFrame->setObjectName(QStringLiteral("betHead"));
+	headFrame->setAttribute(Qt::WA_StyledBackground, true);
+	auto *hh = new QHBoxLayout(headFrame);
+	hh->setContentsMargins(14, 11, 12, 11);
+	hh->setSpacing(9);
+	m_betActiveTitle = new QLabel(QString(), headFrame);
+	m_betActiveTitle->setObjectName(QStringLiteral("betHeadQ"));
 	m_betActiveTitle->setWordWrap(true);
-	av->addWidget(m_betActiveTitle);
+	hh->addWidget(m_betActiveTitle, 1);
+	m_betActiveBadge = new QLabel(QString(), headFrame);
+	m_betActiveBadge->setObjectName(QStringLiteral("betHeadBadge"));
+	m_betActiveBadge->setAlignment(Qt::AlignCenter);
+	hh->addWidget(m_betActiveBadge, 0, Qt::AlignVCenter);
+	av->addWidget(headFrame);
 	m_betActiveState = new QLabel(QString(), m_betActive);
 	m_betActiveState->setObjectName(QStringLiteral("muted"));
 	av->addWidget(m_betActiveState);
@@ -1311,8 +1416,9 @@ void BetterChatDock::refreshBetStateLabel(const QString &status, qint64 bote)
 				QStringLiteral("<img src='data:image/png;base64,%1' width='12' height='12' "
 					       "style='vertical-align:-2px'>&nbsp;")
 					.arg(clockIconB64());
+			// Solo icono + tiempo (sin "para votar"), como la web.
 			tail = secs > 0
-				? QStringLiteral("Abierta&nbsp;&nbsp;·&nbsp;&nbsp;%1%2 para votar").arg(clock).arg(rem)
+				? QStringLiteral("Abierta&nbsp;&nbsp;·&nbsp;&nbsp;%1%2").arg(clock).arg(rem)
 				: QStringLiteral("Abierta&nbsp;&nbsp;·&nbsp;&nbsp;%1cerrando…").arg(clock);
 		}
 	}
@@ -1336,6 +1442,14 @@ void BetterChatDock::onControlState(const QByteArray &json)
 		const QString betId = bet.value(QStringLiteral("id")).toString();
 		m_activeBetStatus = status;
 		m_betActiveTitle->setText(bet.value(QStringLiteral("title")).toString());
+		if (m_betActiveBadge) {
+			const bool locked = status == QStringLiteral("locked");
+			m_betActiveBadge->setText(locked ? QStringLiteral("Cerrada")
+							 : QStringLiteral("Abierta"));
+			m_betActiveBadge->setProperty("locked", locked);
+			m_betActiveBadge->style()->unpolish(m_betActiveBadge);
+			m_betActiveBadge->style()->polish(m_betActiveBadge);
+		}
 		const qint64 bote = static_cast<qint64>(bet.value(QStringLiteral("bote")).toDouble());
 		// Guardar el cierre automático (ISO o vacío) para la cuenta atrás.
 		m_betLockAt = bet.value(QStringLiteral("lockAt")).toString();
@@ -1377,8 +1491,8 @@ void BetterChatDock::onControlState(const QByteArray &json)
 			delete it;
 		}
 		const QJsonArray options = bet.value(QStringLiteral("options")).toArray();
-		for (const QJsonValue &ov : options) {
-			const QJsonObject o = ov.toObject();
+		for (int oi = 0; oi < options.size(); ++oi) {
+			const QJsonObject o = options.at(oi).toObject();
 			const QString oid = o.value(QStringLiteral("id")).toString();
 			const QString label = o.value(QStringLiteral("label")).toString();
 			const qint64 stake =
@@ -1386,17 +1500,17 @@ void BetterChatDock::onControlState(const QByteArray &json)
 			const int n = o.value(QStringLiteral("numWagers")).toInt();
 			const int pct = bote > 0 ? int(stake * 100 / bote) : 0;
 
-			// Pill blanca translúcida: etiqueta a la izquierda, agregados a la derecha.
-			auto *row = new QFrame(m_betActive);
-			row->setObjectName(QStringLiteral("betOpt"));
-			row->setAttribute(Qt::WA_StyledBackground, true);
+			// Fila: [barra de etiqueta con % y texto invertido] [Marcar ganador?]
+			//       [stats etiquetados: fichas / votos / bote] — zona blanca.
+			auto *row = new QWidget(m_betActive);
 			auto *rh = new QHBoxLayout(row);
-			rh->setContentsMargins(10, 7, 10, 7);
-			rh->setSpacing(6);
-			auto *lbl = new QLabel(label, row);
-			lbl->setObjectName(QStringLiteral("betOptLabel"));
-			lbl->setWordWrap(true);
-			rh->addWidget(lbl, 1);
+			rh->setContentsMargins(0, 0, 0, 0);
+			rh->setSpacing(0);
+
+			auto *bar = new PredOptionBar(row);
+			bar->setData(label, pct, predOptionColor(oi));
+			rh->addWidget(bar, 1);
+
 			if (status == QStringLiteral("locked")) {
 				auto *win = new QPushButton(QStringLiteral("Marcar ganador"), row);
 				win->setObjectName(QStringLiteral("betWin"));
@@ -1405,10 +1519,35 @@ void BetterChatDock::onControlState(const QByteArray &json)
 					[this, oid]() { m_api->betAction(QStringLiteral("resolve"), oid); });
 				rh->addWidget(win, 0);
 			}
-			auto *agg = new QLabel(
-				QStringLiteral("%1 · %2 · %3%").arg(stake).arg(n).arg(pct), row);
-			agg->setObjectName(QStringLiteral("betOptAgg"));
-			rh->addWidget(agg, 0);
+
+			// Zona de stats etiquetados (fichas / votos / bote).
+			auto *stats = new QFrame(row);
+			stats->setObjectName(QStringLiteral("betOptStats"));
+			stats->setAttribute(Qt::WA_StyledBackground, true);
+			auto *sh = new QHBoxLayout(stats);
+			sh->setContentsMargins(2, 0, 2, 0);
+			sh->setSpacing(0);
+			const QString statNames[3] = {QStringLiteral("fichas"), QStringLiteral("votos"),
+						      QStringLiteral("bote")};
+			const QString statVals[3] = {QString::number(stake), QString::number(n),
+						     QStringLiteral("%1%").arg(pct)};
+			for (int si = 0; si < 3; ++si) {
+				auto *cell = new QWidget(stats);
+				auto *cv = new QVBoxLayout(cell);
+				cv->setContentsMargins(6, 4, 6, 4);
+				cv->setSpacing(2);
+				auto *v = new QLabel(statVals[si], cell);
+				v->setObjectName(QStringLiteral("betStatV"));
+				v->setAlignment(Qt::AlignCenter);
+				auto *k = new QLabel(statNames[si], cell);
+				k->setObjectName(QStringLiteral("betStatK"));
+				k->setAlignment(Qt::AlignCenter);
+				cv->addWidget(v);
+				cv->addWidget(k);
+				sh->addWidget(cell);
+			}
+			rh->addWidget(stats, 0);
+
 			m_betOptsBox->addWidget(row);
 		}
 		m_betLockBtn->setVisible(status == QStringLiteral("open"));

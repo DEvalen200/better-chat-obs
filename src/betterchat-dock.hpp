@@ -166,6 +166,7 @@ private:
 	void renderHistoryPage();          // pinta la página actual del historial
 	int m_lastHistoryCount = 0;        // nº de predicciones en el historial
 	QLabel *m_betActiveTitle = nullptr;// título de la apuesta activa
+	QLabel *m_betActiveBadge = nullptr;// badge de estado (Abierta/Cerrada) en la cabecera
 	QLabel *m_betActiveState = nullptr;// estado (abierta/bloqueada) + bote
 	QVBoxLayout *m_betOptsBox = nullptr;// filas de opciones con barras
 	QPushButton *m_betLockBtn = nullptr;
