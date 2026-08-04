@@ -129,6 +129,13 @@ private:
 	void buildYouTubePicker(QVBoxLayout *parent); // zona de elegir directo YT (al pie)
 	// --- Pestaña Minijuegos: apuestas con fichas ---
 	void buildBetsTab(QVBoxLayout *parent, QWidget *tab);
+	// Intenta montar la pestaña de apuestas como WEB EMBEBIDA (QCef -> /control via
+	// /plugin/bridge). Devuelve el widget embebido, o nullptr si obs-browser/CEF no
+	// está disponible (entonces se usa buildBetsTab nativo como fallback).
+	QWidget *buildBetsTabEmbedded();
+	void loadBetsEmbedUrl();           // (re)carga la URL del bridge en el QCef al loguear
+	QWidget *m_betsEmbed = nullptr;    // QCefWidget (como QWidget) si va embebido
+	bool m_betsEmbedded = false;       // true si la pestaña de apuestas es web embebida
 	void onControlState(const QByteArray &json);   // refresca el estado de la apuesta
 	void onCreateBetClicked();                      // crea la apuesta desde el formulario
 	void refreshBets();                             // pide /api/control (poll)

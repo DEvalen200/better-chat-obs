@@ -70,6 +70,11 @@ the Free Software Foundation; either version 2 of the License, or
 #include <QDockWidget>
 #include <QSignalBlocker>
 
+// API del navegador embebido de obs-browser (QCef). Header autocontenido; se
+// resuelve en runtime vía os_dlsym, así que NO añade dependencia de link.
+#include <util/platform.h>
+#include "vendor/browser-panel.hpp"
+
 // Estilo del rebrand: MISMA paleta que la web (bg #120b10, panel #1e141b,
 // line #3a2833, texto #f6eef3, acento rosa #ff7ec8, turquesa #3ad9d9, ok/err).
 static const char *kStyle = R"CSS(
@@ -937,21 +942,31 @@ void BetterChatDock::buildUi()
 
 		// ===== Pestaña 2: Minijuegos/Apuestas =====
 		{
-			auto *tab = new QWidget(m_tabStack);
-			auto *tv = new QVBoxLayout(tab);
-			tv->setContentsMargins(0, 0, 0, 0);
-			tv->setSpacing(8);
-			buildBetsTab(tv, tab);
-			// En un scroll: la galería tiene varias tarjetas y sin scroll el dock
-			// flotante se estiraba verticalmente rompiendo la disposición.
-			auto *scroll = new QScrollArea(m_tabStack);
-			scroll->setWidget(tab);
-			scroll->setWidgetResizable(true);
-			scroll->setFrameShape(QFrame::NoFrame);
-			scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-			scroll->setObjectName(QStringLiteral("scrollPage"));
-			m_betsScroll = scroll; // guardado para subir arriba al crear una apuesta
-			m_tabStack->addWidget(scroll); // índice 2
+			// Preferimos WEB EMBEBIDA (QCef): el panel de apuestas es config, no
+			// tiempo real, así que mostramos /control embebido (paridad total con
+			// la web, sin reimplementar el diseño en Qt). Si obs-browser/CEF no
+			// está disponible, caemos al panel NATIVO como fallback.
+			QWidget *embed = buildBetsTabEmbedded();
+			if (embed) {
+				m_betsEmbedded = true;
+				m_tabStack->addWidget(embed); // índice 2 (web embebida)
+			} else {
+				auto *tab = new QWidget(m_tabStack);
+				auto *tv = new QVBoxLayout(tab);
+				tv->setContentsMargins(0, 0, 0, 0);
+				tv->setSpacing(8);
+				buildBetsTab(tv, tab);
+				// En un scroll: la galería tiene varias tarjetas y sin scroll el dock
+				// flotante se estiraba verticalmente rompiendo la disposición.
+				auto *scroll = new QScrollArea(m_tabStack);
+				scroll->setWidget(tab);
+				scroll->setWidgetResizable(true);
+				scroll->setFrameShape(QFrame::NoFrame);
+				scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+				scroll->setObjectName(QStringLiteral("scrollPage"));
+				m_betsScroll = scroll; // guardado para subir arriba al crear una apuesta
+				m_tabStack->addWidget(scroll); // índice 2 (nativo)
+			}
 		}
 
 		m_stack->addWidget(page);
@@ -959,6 +974,59 @@ void BetterChatDock::buildUi()
 }
 
 // ==== Pestaña Minijuegos: apuestas con fichas ====
+
+// Intenta montar la pestaña de apuestas como WEB EMBEBIDA usando el navegador de
+// obs-browser (QCef), que YA viene con OBS (no empaquetamos Chromium). Se resuelve
+// en runtime; si no está disponible (p.ej. Linux/Wayland, o build sin browser),
+// devuelve nullptr y el llamador usa el panel nativo. La sesión web se establece
+// vía /plugin/bridge?token=... (el token del plugin -> cookie de sesión), con un
+// almacén de cookies propio y persistente para no relogear en cada arranque.
+QWidget *BetterChatDock::buildBetsTabEmbedded()
+{
+	QCef *qcef = obs_browser_init_panel();
+	if (!qcef) {
+		obs_log(LOG_INFO, "[betterchat] obs-browser/QCef no disponible; apuestas en modo nativo");
+		return nullptr;
+	}
+	qcef->init_browser();
+	// Almacén de cookies propio y persistente (para conservar la sesión web).
+	static QCefCookieManager *cookies = nullptr;
+	if (!cookies) {
+		BPtr<char> path = os_get_config_path_ptr("obs-studio/plugin_config/betterchat-obs/cef");
+		cookies = qcef->create_cookie_manager(path ? std::string(path) : std::string("betterchat-cef"), true);
+	}
+	// Widget embebido vacío de momento; la URL se pone en loadBetsEmbedUrl() cuando
+	// hay token (al construir si ya logueado, o al recibir loggedIn()).
+	QCefWidget *w = qcef->create_widget(nullptr, std::string(), cookies);
+	if (!w) {
+		obs_log(LOG_WARNING, "[betterchat] QCef create_widget falló; apuestas en modo nativo");
+		return nullptr;
+	}
+	m_betsEmbed = w;
+	obs_log(LOG_INFO, "[betterchat] apuestas en modo WEB EMBEBIDA (QCef v%d)", obs_browser_qcef_version());
+	loadBetsEmbedUrl();
+	return w;
+}
+
+// (Re)carga la URL del puente en el QCef. Se llama al construir y cada vez que
+// cambia el login (loggedIn/loggedOut). Sin token, muestra un about:blank.
+void BetterChatDock::loadBetsEmbedUrl()
+{
+	if (!m_betsEmbed)
+		return;
+	auto *w = static_cast<QCefWidget *>(m_betsEmbed);
+	const QString base = m_api->baseUrl().isEmpty() ? QStringLiteral("https://betterchat.tv")
+							: m_api->baseUrl();
+	const QString tok = m_api->token();
+	if (tok.isEmpty()) {
+		w->setURL("about:blank");
+		return;
+	}
+	// /plugin/bridge valida el token, crea sesión (cookie) y redirige a /control?embed=1.
+	const QString url = base + QStringLiteral("/plugin/bridge?to=control&token=") +
+			    QString::fromUtf8(QUrl::toPercentEncoding(tok));
+	w->setURL(url.toStdString());
+}
 
 // Construye la pestaña de apuestas: un formulario para crear y un panel para la
 // apuesta en curso (se alternan según haya o no apuesta activa). Refresca por poll.
@@ -1233,6 +1301,8 @@ void BetterChatDock::buildBetsTab(QVBoxLayout *parent, QWidget *tab)
 // Pide el estado del panel de control (apuesta activa) al servidor.
 void BetterChatDock::refreshBets()
 {
+	if (m_betsEmbedded)
+		return; // en modo web embebida, la propia página hace su polling
 	m_api->fetchControl();
 }
 
@@ -1480,6 +1550,8 @@ void BetterChatDock::refreshBetStateLabel(const QString &status, qint64 bote)
 // Refresca la UI con el estado de la apuesta activa (o el formulario si no hay).
 void BetterChatDock::onControlState(const QByteArray &json)
 {
+	if (m_betsEmbedded)
+		return; // el panel es web embebida; no hay widgets nativos que actualizar
 	const QJsonObject root = QJsonDocument::fromJson(json).object();
 	m_betDataReady = true;
 	m_lastIsPlus = root.value(QStringLiteral("isPlus")).toBool();
@@ -2546,6 +2618,9 @@ void BetterChatDock::onLoggedIn()
 	if (m_betPollTimer)
 		m_betPollTimer->start();
 	refreshBets();
+	// Si las apuestas van embebidas (QCef), (re)cargar la URL del bridge ya con token.
+	if (m_betsEmbedded)
+		loadBetsEmbedUrl();
 }
 
 void BetterChatDock::onLoggedOut()

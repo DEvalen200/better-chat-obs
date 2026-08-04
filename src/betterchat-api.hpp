@@ -26,6 +26,7 @@ public:
 
 	bool isLoggedIn() const { return !m_token.isEmpty(); }
 	QString baseUrl() const { return m_baseUrl; }
+	QString token() const { return m_token; } // para el puente web embebido (/plugin/bridge)
 	QString username() const { return m_username; }
 	QString overlayUrl() const { return m_overlayUrl; }
 	bool isLive() const { return m_live; }
