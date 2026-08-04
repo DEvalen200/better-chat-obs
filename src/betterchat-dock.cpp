@@ -274,13 +274,12 @@ QLabel#betLockPill {
 	background: rgba(18,11,16,0.12); color: #120b10; border-radius: 999px;
 	padding: 3px 10px; font-size: 11px; font-weight: 700;
 }
-/* Barra superior del panel embebido (con botón Recargar) */
-QWidget#embedBar { background: #1e141b; border-bottom: 1px solid #3a2833; }
-QPushButton#embedReload {
-	background: #3ad9d9; color: #0b2b2b; border: 0; border-radius: 7px;
-	padding: 5px 11px; font-size: 11px; font-weight: 700;
+/* Botón Recargar del pie: discreto, mismo tono apagado que la versión, sin fondo. */
+QPushButton#footReload {
+	background: transparent; color: #6b5a63; border: 0; border-radius: 6px;
+	padding: 2px 6px; font-size: 10px; font-weight: 700;
 }
-QPushButton#embedReload:hover { background: #57e2e2; }
+QPushButton#footReload:hover { color: #b3a1ac; background: rgba(255,255,255,0.05); }
 /* Cabecera encapsulada de la predicción activa: recuadro oscuro + badge */
 QFrame#betHead { background: #120b10; border-radius: 13px; }
 QLabel#betHeadQ { color: #ffffff; font-size: 16px; font-weight: 800; }
@@ -647,12 +646,29 @@ void BetterChatDock::buildUi()
 	m_stack = new QStackedWidget(this);
 	outer->addWidget(m_stack, 1);
 
+	// Pie del dock: botón Recargar (discreto, izquierda) + versión (derecha), a la
+	// misma altura. El botón solo aparece en la pestaña de apuestas embebida y
+	// recarga la web (útil porque el panel es web). Mismo tono apagado que la versión.
+	auto *footer = new QHBoxLayout();
+	footer->setContentsMargins(0, 0, 0, 0);
+	footer->setSpacing(6);
+	m_embedReloadBtn = new QPushButton(QStringLiteral("Recargar"), this);
+	m_embedReloadBtn->setObjectName(QStringLiteral("footReload"));
+	m_embedReloadBtn->setCursor(Qt::PointingHandCursor);
+	m_embedReloadBtn->setToolTip(QStringLiteral("Volver a cargar el panel de apuestas"));
+	m_embedReloadBtn->setIcon(makeReloadIcon());
+	m_embedReloadBtn->setIconSize(QSize(12, 12));
+	m_embedReloadBtn->setVisible(false); // solo en la pestaña de apuestas
+	connect(m_embedReloadBtn, &QPushButton::clicked, this, [this]() { loadBetsEmbedUrl(); });
+	footer->addWidget(m_embedReloadBtn, 0, Qt::AlignLeft);
+	footer->addStretch(1);
 	// Versión del plugin, en pequeño al pie del dock (para soporte).
 	auto *ver = new QLabel(QStringLiteral("v%1").arg(QString::fromUtf8(PLUGIN_VERSION)), this);
 	ver->setObjectName(QStringLiteral("verLabel"));
 	m_verLabel = ver;
-	ver->setAlignment(Qt::AlignRight);
-	outer->addWidget(ver);
+	ver->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+	footer->addWidget(ver, 0, Qt::AlignRight);
+	outer->addLayout(footer);
 
 	// ---- Vista 0: login ----
 	{
@@ -1012,36 +1028,7 @@ QWidget *BetterChatDock::buildBetsTabEmbedded()
 	m_betsEmbed = w;
 	obs_log(LOG_INFO, "[betterchat] apuestas en modo WEB EMBEBIDA (QCef v%d)", obs_browser_qcef_version());
 	loadBetsEmbedUrl();
-
-	// Contenedor: barra fina superior con botón "Recargar" + el navegador debajo.
-	// El botón hace reloadPage() del QCef (recarga la web al instante, sin reiniciar
-	// OBS): útil porque el panel es web y los cambios de servidor se ven al recargar.
-	auto *wrap = new QWidget();
-	auto *wv = new QVBoxLayout(wrap);
-	wv->setContentsMargins(0, 0, 0, 0);
-	wv->setSpacing(0);
-	auto *bar = new QWidget(wrap);
-	bar->setObjectName(QStringLiteral("embedBar"));
-	bar->setAttribute(Qt::WA_StyledBackground, true);
-	auto *bh = new QHBoxLayout(bar);
-	bh->setContentsMargins(8, 5, 8, 5);
-	bh->setSpacing(6);
-	bh->addStretch(1);
-	auto *reloadBtn = new QPushButton(QStringLiteral("Recargar"), bar);
-	reloadBtn->setObjectName(QStringLiteral("embedReload"));
-	reloadBtn->setCursor(Qt::PointingHandCursor);
-	reloadBtn->setToolTip(QStringLiteral("Volver a cargar el panel de apuestas"));
-	reloadBtn->setIcon(makeReloadIcon());
-	reloadBtn->setIconSize(QSize(14, 14));
-	connect(reloadBtn, &QPushButton::clicked, this, [this]() {
-		// Recargar desde el puente (renueva sesión) para no caer en un about:blank
-		// si el token cambió; si no hay token, reloadPage basta.
-		loadBetsEmbedUrl();
-	});
-	bh->addWidget(reloadBtn, 0);
-	wv->addWidget(bar, 0);
-	wv->addWidget(w, 1);
-	return wrap;
+	return w; // el navegador es la pestaña; el botón Recargar vive en el pie del dock
 }
 // (Re)carga la URL del puente en el QCef. Se llama al construir y cada vez que
 // cambia el login (loggedIn/loggedOut). Sin token, muestra un about:blank.
@@ -1909,6 +1896,10 @@ void BetterChatDock::selectTab(int index)
 	m_tabStack->setCurrentIndex(index);
 	for (int i = 0; i < m_tabButtons.size(); i++)
 		m_tabButtons[i]->setChecked(i == index);
+	// El botón Recargar del pie solo tiene sentido en la pestaña de apuestas cuando
+	// esta es web embebida (índice 2).
+	if (m_embedReloadBtn)
+		m_embedReloadBtn->setVisible(m_betsEmbedded && index == 2);
 	// El stream del multichat se mantiene VIVO mientras haya sesión (no se corta al
 	// salir de la pestaña): así no se reconectan los conectores cada vez que entras
 	// (evita el parpadeo "conectando -> chat en vivo"). Se arranca la 1a vez que se
@@ -2229,6 +2220,7 @@ void BetterChatDock::toggleChatFullscreen()
 	if (m_topRow) m_topRow->setVisible(!fs);
 	if (m_navBar) m_navBar->setVisible(!fs);
 	if (m_verLabel) m_verLabel->setVisible(!fs);
+	if (m_embedReloadBtn) m_embedReloadBtn->setVisible(!fs && m_betsEmbedded && m_tabStack && m_tabStack->currentIndex() == 2);
 	if (m_platBar) m_platBar->setVisible(!fs);
 	if (m_multiStatus) m_multiStatus->setVisible(!fs);
 	if (m_ytZone) m_ytZone->setVisible(!fs);

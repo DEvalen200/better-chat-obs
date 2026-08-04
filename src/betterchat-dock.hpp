@@ -136,6 +136,7 @@ private:
 	void loadBetsEmbedUrl();           // (re)carga la URL del bridge en el QCef al loguear
 	QWidget *m_betsEmbed = nullptr;    // QCefWidget (como QWidget) si va embebido
 	bool m_betsEmbedded = false;       // true si la pestaña de apuestas es web embebida
+	QPushButton *m_embedReloadBtn = nullptr; // botón Recargar del pie (solo en apuestas)
 	void onControlState(const QByteArray &json);   // refresca el estado de la apuesta
 	void onCreateBetClicked();                      // crea la apuesta desde el formulario
 	void refreshBets();                             // pide /api/control (poll)
